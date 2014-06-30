@@ -1,0 +1,2 @@
+#!/bin/bash
+./a.out 1234 /usr/lib64/softhsm/libsofthsm2.so
