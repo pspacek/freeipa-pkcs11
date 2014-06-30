@@ -109,7 +109,7 @@ int exit_handler(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session) {
      return EXIT_SUCCESS;
 }
 
-int do_something(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session);
+CK_RV do_something(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session);
 
 int
 main(int argc, char **argv)

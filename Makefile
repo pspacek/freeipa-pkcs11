@@ -7,13 +7,14 @@ SOLIBS	=
 
 ########################################################################
 
-PROGS	= gen_mkey
+PROGS	= gen_mkey gen_pkey
 all:	$(PROGS)
 
 clean:
 	rm -rf $(PROGS) *.[ao] *~
 
 gen_mkey: gen_mkey.o library.o
+gen_pkey: gen_pkey.o library.o
 
 %:	%.o
 	$(CC) $(CFLAGS) $(LDLIBS) $^ $(LDLIBS) -o $@

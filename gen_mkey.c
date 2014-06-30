@@ -1,6 +1,6 @@
 #include "common.c"
 
-int
+CK_RV
 create_master_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session)
 {
      CK_RV rv;
@@ -34,7 +34,7 @@ create_master_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session)
      return CKR_OK;
 }
 
-int
+CK_RV
 do_something(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session)
 {
 	return create_master_key(p11, session);
