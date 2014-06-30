@@ -7,7 +7,7 @@ SOLIBS	=
 
 ########################################################################
 
-PROGS	= gen_mkey gen_pkey
+PROGS	= gen_mkey gen_pkey wrap_mkey_with_pkey
 all:	$(PROGS)
 
 clean:
@@ -15,6 +15,7 @@ clean:
 
 gen_mkey: gen_mkey.o library.o
 gen_pkey: gen_pkey.o library.o
+wrap_mkey_with_pkey:	wrap_mkey_with_pkey.o library.o
 
 %:	%.o
 	$(CC) $(CFLAGS) $(LDLIBS) $^ $(LDLIBS) -o $@

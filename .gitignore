@@ -1,3 +1,4 @@
 *.o
 gen_mkey
 gen_pkey
+wrap_mkey_with_pkey

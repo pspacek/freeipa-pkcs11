@@ -143,3 +143,68 @@ main(int argc, char **argv)
      return exit_handler(p11, session);
 }
 
+CK_OBJECT_HANDLE
+find_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session,
+	CK_OBJECT_CLASS keyClass)
+{
+     CK_RV rv;
+     CK_ATTRIBUTE template[] = {
+          { CKA_CLASS, &keyClass, sizeof(keyClass) }
+     };
+     CK_ULONG objectCount;
+     CK_OBJECT_HANDLE object;
+
+     rv = p11->C_FindObjectsInit(session, template, 1);
+     check_return_value(rv, "Find key init");
+
+     rv = p11->C_FindObjects(session, &object, 1, &objectCount);
+     check_return_value(rv, "Find first key");
+
+     if (objectCount != 1) {
+	     rv = (CKR_VENDOR_DEFINED | 1);
+	     check_return_value(rv, "More than 1 key found");
+     }
+
+     rv = p11->C_FindObjectsFinal(session);
+     check_return_value(rv, "Find objects final");
+     return object;
+}
+
+
+FILE *
+get_key_file(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session, CK_OBJECT_HANDLE key)
+{
+     CK_RV rv;
+     unsigned int i;
+     char *file_name = NULL;
+     size_t file_name_len = 1; // for \0
+     CK_UTF8CHAR label[80];
+     CK_BYTE id[10];
+     memset(id, 0, sizeof(id));
+     memset(id, 0, sizeof(label));
+
+     CK_ATTRIBUTE template[] = {
+          {CKA_LABEL, label, sizeof(label) - 1},
+          {CKA_ID, id, sizeof(id) - 1}
+     };
+
+     rv = p11->C_GetAttributeValue(session, key, template,
+				   sizeof(template)/sizeof(CK_ATTRIBUTE));
+     check_return_value(rv, "get attribute value");
+
+     file_name_len += template[0].ulValueLen;
+     file_name_len += template[1].ulValueLen*2; // byte -> hex
+     file_name = malloc(file_name_len);
+     if (file_name == NULL) {
+	     rv = CKR_HOST_MEMORY;
+	     check_return_value(rv, "key wrapping: file name buffer allocation");
+     }
+     memcpy(file_name, label, template[0].ulValueLen);
+     for (i = 0; i < template[1].ulValueLen; i++) {
+	     sprintf(file_name + template[0].ulValueLen + i*2, "%02x", id[i]);
+     }
+     file_name[file_name_len - 1] = '\0';
+
+     fprintf(stdout, "\tKey label-id: %s\n", file_name);
+     return fopen(file_name, "w");
+}
