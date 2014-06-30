@@ -1,2 +1,0 @@
-#gcc -std=gnu99 -ggdb3 -Wall -ldl -I/usr/include/p11-kit-1/p11-kit library.c gen_key.c 
-gcc -std=gnu99 -ggdb3 -Wall -ldl -I/usr/include/p11-kit-1/p11-kit library.c wrap_key.c 

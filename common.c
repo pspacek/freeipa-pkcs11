@@ -116,7 +116,7 @@ main(int argc, char **argv)
 {
      CK_SLOT_ID slot;
      CK_SESSION_HANDLE session;
-     CK_BYTE *userPin = NULL;
+     CK_BYTE *userPin = (CK_BYTE *)"1234";
      CK_RV rv;
      CK_FUNCTION_LIST_PTR p11;
      void *moduleHandle = NULL;
@@ -136,10 +136,10 @@ main(int argc, char **argv)
      check_return_value(rv, "initialize");
      slot = get_slot(p11);
      session = start_session(p11, slot);
-     login(p11, session, "1234");
+     login(p11, session, userPin);
 
      rv = do_something(p11, session);
      check_return_value(rv, "do_something");
-     exit_handler(p11, session);
+     return exit_handler(p11, session);
 }
 
