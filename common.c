@@ -122,7 +122,8 @@ main(int argc, char **argv)
      void *moduleHandle = NULL;
 
      // Get a pointer to the function list for PKCS#11 library (argv[2])
-     CK_C_GetFunctionList pGetFunctionList = loadLibrary("/usr/lib64/softhsm/libsofthsm2.so", &moduleHandle);
+     // CK_C_GetFunctionList pGetFunctionList = loadLibrary("/usr/lib64/softhsm/libsofthsm2.so", &moduleHandle);
+     CK_C_GetFunctionList pGetFunctionList = loadLibrary("/home/pspacek/softhsm/v2/git/src/lib/.libs/libsofthsm2.so", &moduleHandle);
      if (!pGetFunctionList)
      {
      	fprintf(stderr, "ERROR: Could not load the library.\n");
@@ -207,4 +208,28 @@ get_key_file(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session, CK_OBJECT_HAND
 
      fprintf(stdout, "\tKey label-id: %s\n", file_name);
      return fopen(file_name, "w");
+}
+
+CK_RV
+wrap_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session, CK_MECHANISM wrappingMech, CK_OBJECT_HANDLE toBeWrappedKey, CK_OBJECT_HANDLE wrappingKey)
+{
+     CK_RV rv;
+     CK_BYTE_PTR pWrappedKey = NULL;
+     CK_ULONG wrappedKeyLen = 0;
+     FILE * fp = NULL;
+
+     rv = p11->C_WrapKey(session, &wrappingMech, wrappingKey, toBeWrappedKey, NULL, &wrappedKeyLen);
+     check_return_value(rv, "key wrapping: get buffer length");
+     pWrappedKey = malloc(wrappedKeyLen);
+     if (pWrappedKey == NULL) {
+             rv = CKR_HOST_MEMORY;
+             check_return_value(rv, "key wrapping: buffer allocation");
+     }
+     rv = p11->C_WrapKey(session, &wrappingMech, wrappingKey, toBeWrappedKey, pWrappedKey, &wrappedKeyLen);
+     check_return_value(rv, "key wrapping: real wrapping");
+     fp = get_key_file(p11, session, toBeWrappedKey);
+     fwrite(pWrappedKey, wrappedKeyLen, 1, fp);
+     fclose(fp);
+
+     return CKR_OK;
 }

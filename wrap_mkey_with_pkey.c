@@ -1,30 +1,6 @@
 #include "common.c"
 
 CK_RV
-wrap_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session, CK_MECHANISM wrappingMech, CK_OBJECT_HANDLE toBeWrappedKey, CK_OBJECT_HANDLE wrappingKey)
-{
-     CK_RV rv;
-     CK_BYTE_PTR pWrappedKey = NULL;
-     CK_ULONG wrappedKeyLen = 0;
-     FILE * fp = NULL;
-
-     rv = p11->C_WrapKey(session, &wrappingMech, wrappingKey, toBeWrappedKey, NULL, &wrappedKeyLen);
-     check_return_value(rv, "key wrapping: get buffer length");
-     pWrappedKey = malloc(wrappedKeyLen);
-     if (pWrappedKey == NULL) {
-             rv = CKR_HOST_MEMORY;
-             check_return_value(rv, "key wrapping: buffer allocation");
-     }
-     rv = p11->C_WrapKey(session, &wrappingMech, wrappingKey, toBeWrappedKey, pWrappedKey, &wrappedKeyLen);
-     check_return_value(rv, "key wrapping: real wrapping");
-     fp = get_key_file(p11, session, toBeWrappedKey);
-     fwrite(pWrappedKey, wrappedKeyLen, 1, fp);
-     fclose(fp);
-
-     return CKR_OK;
-}
-
-CK_RV
 wrap_secret_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session)
 {
      CK_OBJECT_HANDLE secretKey;
