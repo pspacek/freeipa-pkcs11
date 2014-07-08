@@ -9,7 +9,7 @@ create_replica_key_pair(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session)
           CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0
      };
      CK_ULONG modulusBits = 2048;
-     CK_BYTE publicExponent[] = { 1, 0, 1 };
+     CK_BYTE publicExponent[] = { 1, 0, 1 }; /* 65537 (RFC 6376 section 3.3.1)*/
      CK_BYTE subject[] = "replica1-keypair";
      CK_BYTE id[] = {0xa1};
      CK_ATTRIBUTE publicKeyTemplate[] = {
