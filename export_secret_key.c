@@ -46,8 +46,11 @@ export_secret_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session)
          fprintf(stdout, "\tvalue: ");
          for(i=0; obj_template[0].ulValueLen>i; ++i) fprintf(stdout, "%02x", value[i]);
          fprintf(stdout, "\n");
+         FILE *fp = get_key_file(p11, session, object);
+         fwrite(obj_template[0].pValue, obj_template[0].ulValueLen, 1, fp);
     } else {
          fprintf(stderr, "\tvalue too large, or not found\n");
+         return CKR_GENERAL_ERROR;
     }
        
     rv = p11->C_FindObjectsFinal(session);
