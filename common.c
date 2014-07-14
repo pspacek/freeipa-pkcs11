@@ -176,7 +176,7 @@ main(int argc, char **argv)
 
      // Get a pointer to the function list for PKCS#11 library (argv[2])
      // CK_C_GetFunctionList pGetFunctionList = loadLibrary("/usr/lib64/softhsm/libsofthsm2.so", &moduleHandle);
-     CK_C_GetFunctionList pGetFunctionList = loadLibrary("/home/pspacek/softhsm/v2/git/src/lib/.libs/libsofthsm2.so", &moduleHandle);
+     CK_C_GetFunctionList pGetFunctionList = loadLibrary(PKCS11LIB, &moduleHandle);
      if (!pGetFunctionList)
      {
      	fprintf(stderr, "ERROR: Could not load the library.\n");
