@@ -1,6 +1,12 @@
+# Eclipse
+.cproject
+.project
+.settings
 *.o
+del_obj
 export_public_keys
 export_secret_key
 gen_mkey
 gen_pkey
 wrap_mkey_with_pkey
+unwrap_mkey_with_pkey
