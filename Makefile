@@ -8,7 +8,7 @@ SOLIBS	=
 ########################################################################
 
 PROGS	= gen_mkey gen_pkey wrap_mkey_with_pkey export_public_keys \
-	  export_secret_key import_public_key
+	  export_secret_key import_public_key  wrappedprivkey_to_asn1
 
 all:	$(PROGS)
 
@@ -21,6 +21,7 @@ wrap_mkey_with_pkey:	wrap_mkey_with_pkey.o library.o
 export_public_keys: export_public_keys.o library.o
 export_secret_key: export_secret_key.o library.o
 import_public_key: import_public_key.o library.o
+wrappedprivkey_to_asn1: wrappedprivkey_to_asn1.o
 
 %:	%.o
 	$(CC) $(CFLAGS) $(LDLIBS) $^ $(LDLIBS) -o $@
