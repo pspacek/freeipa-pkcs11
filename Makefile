@@ -14,7 +14,7 @@ SOLIBS	=
 
 PROGS	= gen_mkey gen_pkey wrap_mkey_with_pkey export_public_keys \
 	  export_secret_key import_public_key  wrappedprivkey_to_asn1 \
-	  asn1_to_wrappedprivkey del_obj
+	  asn1_to_wrappedprivkey del_obj unwrap_mkey_with_pkey
 
 all:	$(PROGS)
 
@@ -30,6 +30,7 @@ import_public_key: import_public_key.o library.o
 wrappedprivkey_to_asn1: wrappedprivkey_to_asn1.o library.o
 asn1_to_wrappedprivkey: asn1_to_wrappedprivkey.o library.o
 del_obj: del_obj.o library.o
+unwrap_mkey_with_pkey: unwrap_mkey_with_pkey.o library.o
 
 %:	%.o
 	$(CC) $(CFLAGS) $(LDLIBS) $^ $(LDLIBS) -o $@
