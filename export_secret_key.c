@@ -58,7 +58,7 @@ export_secret_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session)
 {
     CK_RV rv;
     CK_OBJECT_CLASS keyClass = CKO_SECRET_KEY;
-    CK_BYTE id[] = {0x01};
+    CK_BYTE id[] = {'m'};
     CK_ATTRIBUTE find_template[] = {
          { CKA_CLASS, &keyClass, sizeof(keyClass) },
          { CKA_ID, &id, sizeof(id) }

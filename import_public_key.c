@@ -111,7 +111,6 @@ import_public_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session)
     exponent_len = BN_bn2bin(rsa->e, (unsigned char *) exponent);
     //TODO get Type of algorithm from PUBKEY
     CK_OBJECT_CLASS keyClass = CKO_PUBLIC_KEY;
-    CK_ULONG modulusBits = 2048;
     CK_BYTE subject[] = "imported-pubkey";
     CK_BYTE id[] = {6,6,6};
     CK_OBJECT_HANDLE data;

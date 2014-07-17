@@ -225,6 +225,34 @@ find_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session,
 }
 
 
+CK_OBJECT_HANDLE
+find_key_id(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session,
+	CK_BYTE_PTR id, CK_ULONG idLen, CK_OBJECT_CLASS class)
+{
+     CK_RV rv;
+     CK_ATTRIBUTE template[] = {
+          { CKA_ID, id, idLen },
+          { CKA_CLASS, &class, sizeof(class) }
+     };
+     CK_ULONG objectCount;
+     CK_OBJECT_HANDLE object;
+
+     rv = p11->C_FindObjectsInit(session, template, 1);
+     check_return_value(rv, "Find key init");
+
+     rv = p11->C_FindObjects(session, &object, 1, &objectCount);
+     check_return_value(rv, "Find first key");
+
+     if (objectCount != 1) {
+	     rv = (CKR_VENDOR_DEFINED | 1);
+	     check_return_value(rv, "find_key_id: 1 key expected");
+     }
+
+     rv = p11->C_FindObjectsFinal(session);
+     check_return_value(rv, "Find objects final");
+     return object;
+}
+
 FILE *
 get_key_file(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session, CK_OBJECT_HANDLE key)
 {

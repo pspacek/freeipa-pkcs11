@@ -62,7 +62,7 @@ create_master_key(CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session)
           CKM_AES_KEY_GEN, NULL_PTR, 0
      };
      CK_BYTE subject[] = "master-aes";
-     CK_BYTE id[] = {0x01};
+     CK_BYTE id[] = {'m'};
      CK_ULONG keyLength = 16;
      CK_ATTRIBUTE symKeyTemplate[] = {
           {CKA_ID, id, sizeof(id)},
