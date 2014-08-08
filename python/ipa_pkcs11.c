@@ -14,7 +14,9 @@ CK_BBOOL false = CK_FALSE;
 /**
  * IPA_PKCS11 Exception
  */
-static PyObject *IPA_PKCS11Error;
+static PyObject *IPA_PKCS11Error;  //general error
+static PyObject *IPA_PKCS11NotFound;  //key not found
+static PyObject *IPA_PKCS11DuplicationError; //key aleready exists
 
 /*
  * Support functions
@@ -251,9 +253,17 @@ PyMODINIT_FUNC initipa_pkcs11(void) {
 	PyModule_AddObject(m, "IPA_PKCS11", (PyObject *) &IPA_PKCS11Type);
 
 	/*
-	 * Setting up IPA_PKCS11 Exception (IPA_PKCS11.error)
+	 * Setting up IPA_PKCS11 Exceptions
 	 */
 	IPA_PKCS11Error = PyErr_NewException("IPA_PKCS11.error", NULL, NULL);
 	Py_INCREF(IPA_PKCS11Error);
 	PyModule_AddObject(m, "error", IPA_PKCS11Error);
+
+	IPA_PKCS11NotFound = PyErr_NewException("IPA_PKCS11.NotFound", NULL, NULL);
+	Py_INCREF(IPA_PKCS11NotFound);
+	PyModule_AddObject(m, "NotFound", IPA_PKCS11NotFound);
+
+	IPA_PKCS11DuplicationError = PyErr_NewException("IPA_PKCS11.DuplicationError", NULL, NULL);
+	Py_INCREF(IPA_PKCS11DuplicationError);
+	PyModule_AddObject(m, "DuplicationError", IPA_PKCS11DuplicationError);
 }
