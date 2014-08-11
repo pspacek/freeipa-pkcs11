@@ -12,11 +12,22 @@ CK_BBOOL true = CK_TRUE;
 CK_BBOOL false = CK_FALSE;
 
 /**
+ * IPA_PKCS11 type
+ */
+typedef struct {
+	PyObject_HEAD
+	CK_SLOT_ID slot;
+	CK_FUNCTION_LIST_PTR p11;
+	CK_SESSION_HANDLE session;
+} IPA_PKCS11;
+
+/**
  * IPA_PKCS11 Exceptions
  */
 static PyObject *IPA_PKCS11Error;  //general error
 static PyObject *IPA_PKCS11NotFound;  //key not found
 static PyObject *IPA_PKCS11DuplicationError; //key already exists
+
 
 /***********************************************************************
  * Support functions
@@ -69,15 +80,82 @@ int check_return_value(CK_RV rv, const char *message) {
 	return 1;
 }
 
+/*
+ * Find key by 'id' or 'label' and 'class'
+ *
+ * id or label and class must be specified
+ *
+ * @param id key ID, (if value is NULL, will find key only by label)
+ * @param idLen key ID length
+ * @param label key label (if value is NULL, will find key only by ID)
+ * @param labelLen key label length
+ * @param class key class
+ * @param object
+ * @return 1 if object was found, otherwise return 0 and set the exception
+ *
+ * @raise IPA_PKCS11NotFound if no result is returned
+ */
+int
+_find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG idLen,
+		CK_BYTE_PTR label, CK_ULONG labelLen,
+		CK_OBJECT_CLASS class, CK_OBJECT_HANDLE *object)
+{
+	/* specify max number of possible attributes, increase this number whenever
+	 * new attribute is added and don't forget to increase attr_count with each
+	 * set attribute
+	 */
+	unsigned int max_possible_attributes = 3;
+	CK_ATTRIBUTE template[max_possible_attributes];
+	unsigned int attr_count = 0;
+
+    CK_RV rv;
+    if((label==NULL) && (id==NULL)){
+    	PyErr_SetString(IPA_PKCS11Error, "Key 'id' or 'label' required.");
+    	return 0;
+    }
+    if (label!=NULL){
+    	template[attr_count].type = CKA_LABEL;
+    	template[attr_count].pValue = (void *) label;
+    	template[attr_count].ulValueLen = labelLen;
+    	++attr_count;
+    }
+    if (id!=NULL){
+    	template[attr_count].type = CKA_ID;
+    	template[attr_count].pValue = (void *) id;
+    	template[attr_count].ulValueLen = idLen;
+    	++attr_count;
+    }
+
+    /* Set CLASS */
+	template[attr_count].type = CKA_CLASS;
+	template[attr_count].pValue = (void *) &class;
+	template[attr_count].ulValueLen = sizeof(class);
+	++attr_count;
+
+    CK_ULONG objectCount;
+    rv = self->p11->C_FindObjectsInit(self->session, template, attr_count);
+    if(!check_return_value(rv, "Find key init"))
+    	return 0;
+
+    rv = self->p11->C_FindObjects(self->session, &object, 1, &objectCount);
+    if(!check_return_value(rv, "Find key"))
+    	return 0;
+
+    if (objectCount != 1) { //TODO should be here NotFound error
+    	rv = (CKR_VENDOR_DEFINED | 1);
+    	if(!check_return_value(rv, "find_key_id: 1 key expected"))
+    		return 0;
+    }
+
+    rv = self->p11->C_FindObjectsFinal(self->session);
+    if(!check_return_value(rv, "Find objects final"))
+    	return 0;
+    return 1;
+}
+
 /***********************************************************************
  * IPA_PKCS11 object
  */
-typedef struct {
-	PyObject_HEAD
-	CK_SLOT_ID slot;
-	CK_FUNCTION_LIST_PTR p11;
-	CK_SESSION_HANDLE session;
-} IPA_PKCS11;
 
 static void IPA_PKCS11_dealloc(IPA_PKCS11* self) {
 	self->ob_type->tp_free((PyObject*) self);
@@ -322,6 +400,41 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
 	return Py_None;
 }
 
+/**
+ * Find key
+ *
+ * Default class: public_key
+ *
+ */
+static PyObject *
+IPA_PKCS11_find_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
+    CK_RV rv;
+    CK_OBJECT_HANDLE symKey;
+    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
+    CK_BYTE *id = NULL;
+    int id_length = 0;
+    CK_ULONG keyLength = 16;
+    PyObject *labelUnicode = NULL;
+    Py_ssize_t label_length = 0;
+	static char *kwlist[] = {"class", "label", "id", NULL };
+	//TODO check long overflow
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#", kwlist,
+			 &class, &labelUnicode, &id, &id_length, &keyLength)){
+		return NULL;
+	}
+	CK_BYTE *label = NULL;
+	if (labelUnicode != NULL){
+		Py_XINCREF(labelUnicode);
+		label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
+		Py_XDECREF(labelUnicode);
+	}
+	CK_OBJECT_HANDLE *object = 0;
+	if(! _find_key(self, id, id_length, label, label_length, class, &object))
+		return NULL;
+
+	return Py_None;
+}
 
 static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "initialize",
@@ -336,6 +449,9 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "generate_replica_key_pair",
 		(PyCFunction) IPA_PKCS11_generate_replica_key_pair, METH_VARARGS|METH_KEYWORDS,
 		"Generate replica key pair" },
+		{ "find_key",
+		(PyCFunction) IPA_PKCS11_find_key, METH_VARARGS|METH_KEYWORDS,
+		"Find key" },
 		{ NULL } /* Sentinel */
 };
 
@@ -422,4 +538,20 @@ PyMODINIT_FUNC initipa_pkcs11(void) {
 	IPA_PKCS11DuplicationError = PyErr_NewException("IPA_PKCS11.DuplicationError", NULL, NULL);
 	Py_INCREF(IPA_PKCS11DuplicationError);
 	PyModule_AddObject(m, "DuplicationError", IPA_PKCS11DuplicationError);
+
+	/**
+	 * Setting up module attributes
+	 */
+	PyObject *IPA_PKCS11_CLASS_PUBKEY_obj = PyInt_FromLong(CKO_PUBLIC_KEY);
+	PyObject_SetAttrString(m, "KEY_CLASS_PUBLIC_KEY", IPA_PKCS11_CLASS_PUBKEY_obj);
+	Py_XDECREF(IPA_PKCS11_CLASS_PUBKEY_obj);
+
+	PyObject *IPA_PKCS11_CLASS_PRIVKEY_obj = PyInt_FromLong(CKO_PRIVATE_KEY);
+	PyObject_SetAttrString(m, "KEY_CLASS_PRIVATE_KEY", IPA_PKCS11_CLASS_PRIVKEY_obj);
+	Py_XDECREF(IPA_PKCS11_CLASS_PRIVKEY_obj);
+
+	PyObject *IPA_PKCS11_CLASS_SECRETKEY_obj = PyInt_FromLong(CKO_SECRET_KEY);
+	PyObject_SetAttrString(m, "KEY_CLASS_SECRET_KEY", IPA_PKCS11_CLASS_SECRETKEY_obj);
+	Py_XDECREF(IPA_PKCS11_CLASS_SECRETKEY_obj);
+
 }
