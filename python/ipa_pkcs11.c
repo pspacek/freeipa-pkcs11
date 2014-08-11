@@ -12,13 +12,13 @@ CK_BBOOL true = CK_TRUE;
 CK_BBOOL false = CK_FALSE;
 
 /**
- * IPA_PKCS11 Exception
+ * IPA_PKCS11 Exceptions
  */
 static PyObject *IPA_PKCS11Error;  //general error
 static PyObject *IPA_PKCS11NotFound;  //key not found
 static PyObject *IPA_PKCS11DuplicationError; //key aleready exists
 
-/*
+/***********************************************************************
  * Support functions
  */
 
@@ -173,6 +173,61 @@ IPA_PKCS11_finalize(IPA_PKCS11* self) {
 	return Py_None;
 }
 
+/********************************************************************
+ * Methods working with keys
+ */
+
+/**
+ * Generate master key
+ *
+ */
+static PyObject *
+IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
+    CK_RV rv;
+    CK_OBJECT_HANDLE symKey;
+	CK_BYTE *subject = NULL;
+    CK_BYTE *id = NULL;
+    CK_ULONG keyLength = 16;
+
+	static char *kwlist[] = {"subject", "id", "key_length", NULL };
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "ss|k", kwlist,
+			&subject, &id, &keyLength)){
+		return NULL;
+	}
+
+
+    CK_MECHANISM mechanism = { //TODO param?
+         CKM_AES_KEY_GEN, NULL_PTR, 0
+    };
+    CK_ATTRIBUTE symKeyTemplate[] = {
+         {CKA_ID, id, sizeof(id) - 1}, //TODO test -1
+         {CKA_LABEL, subject, sizeof(subject) - 1}, //TODO test -1
+         {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
+         {CKA_PRIVATE, &true, sizeof(true)}, //TODO param?
+         {CKA_ENCRYPT, &false, sizeof(false)}, //TODO param?
+         {CKA_DECRYPT, &false, sizeof(false)}, //TODO param?
+         {CKA_VERIFY, &false, sizeof(false)}, //TODO param?
+         {CKA_WRAP, &true, sizeof(true)}, //TODO param?
+         {CKA_UNWRAP, &true, sizeof(true)}, //TODO param?
+         {CKA_EXTRACTABLE, &true, sizeof(true)}, //TODO param?
+         {CKA_VALUE_LEN, &keyLength, sizeof(keyLength)}
+    };
+
+    //TODO if key exists raise an error????
+
+    rv = self->p11->C_GenerateKey(self->session,
+                           &mechanism,
+                           symKeyTemplate,
+			    sizeof(symKeyTemplate)/sizeof(CK_ATTRIBUTE),
+                           &symKey);
+    if(!check_return_value(rv, "generate master key"))
+    	return NULL;
+
+	return Py_None;
+}
+
+
+
 static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "initialize",
 		(PyCFunction) IPA_PKCS11_initialize, METH_VARARGS,
@@ -180,6 +235,9 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "finalize",
 		(PyCFunction) IPA_PKCS11_finalize, METH_NOARGS,
 		"Finalize operations with pkcs11 library" },
+		{ "generate_master_key",
+		(PyCFunction) IPA_PKCS11_generate_master_key, METH_VARARGS|METH_KEYWORDS,
+		"Generate master key" },
 		{ NULL } /* Sentinel */
 };
 
