@@ -182,7 +182,8 @@ IPA_PKCS11_finalize(IPA_PKCS11* self) {
  *
  */
 static PyObject *
-IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
+IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
     CK_RV rv;
     CK_OBJECT_HANDLE symKey;
 	CK_BYTE *subject = NULL;
@@ -227,6 +228,66 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 }
 
 
+/**
+ * Generate replica keys
+ *
+ */
+static PyObject *
+IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
+    CK_RV rv;
+    CK_ULONG modulusBits = 2048;
+    CK_BYTE *subject = NULL;
+    CK_BYTE *id = NULL;
+	static char *kwlist[] = {"subject", "id", "modulus_bits", NULL };
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "ss|k", kwlist,
+			&subject, &id, &modulusBits)){
+		return NULL;
+	}
+
+    CK_OBJECT_HANDLE publicKey, privateKey;
+    CK_MECHANISM mechanism = {
+         CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0
+    };
+
+    //TODO raise an exception if key exists
+
+    CK_BYTE publicExponent[] = { 1, 0, 1 }; /* 65537 (RFC 6376 section 3.3.1)*/
+    CK_ATTRIBUTE publicKeyTemplate[] = {
+         {CKA_ID, id, sizeof(id) - 1},
+         {CKA_LABEL, subject, sizeof(subject) - 1},
+         {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
+         {CKA_WRAP, &true, sizeof(true)}, //TODO param?
+         {CKA_MODULUS_BITS, &modulusBits, sizeof(modulusBits)}, //TODO param
+         {CKA_PUBLIC_EXPONENT, publicExponent, 3},
+    };
+    CK_ATTRIBUTE privateKeyTemplate[] = {
+         {CKA_ID, id, sizeof(id) - 1},
+         {CKA_LABEL, subject, sizeof(subject) - 1},
+         {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
+         {CKA_PRIVATE, &true, sizeof(true)}, //TODO param?
+         {CKA_SENSITIVE, &false, sizeof(false)}, // prevents wrapping
+         	 	 	 	 	 	 	 	 	 	 //TODO param?
+         {CKA_UNWRAP, &true, sizeof(true)}, //TODO param?
+         {CKA_EXTRACTABLE, &true, sizeof(true)}, //TODO param?
+         {CKA_WRAP_WITH_TRUSTED, &false, sizeof(false)} // prevents wrapping
+         	 	 	 	 	 	 	 	 	 	 //TODO param?
+    };
+
+    rv = self->p11->C_GenerateKeyPair(self->session,
+                           &mechanism,
+                           publicKeyTemplate,
+			    sizeof(publicKeyTemplate)/sizeof(CK_ATTRIBUTE),
+                           privateKeyTemplate,
+			    sizeof(privateKeyTemplate)/sizeof(CK_ATTRIBUTE),
+                           &publicKey,
+                           &privateKey);
+    if(!check_return_value(rv, "generate key pair"))
+    	return NULL;
+
+	return Py_None;
+}
+
 
 static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "initialize",
@@ -238,6 +299,9 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "generate_master_key",
 		(PyCFunction) IPA_PKCS11_generate_master_key, METH_VARARGS|METH_KEYWORDS,
 		"Generate master key" },
+		{ "generate_replica_key_pair",
+		(PyCFunction) IPA_PKCS11_generate_replica_key_pair, METH_VARARGS|METH_KEYWORDS,
+		"Generate replica key pair" },
 		{ NULL } /* Sentinel */
 };
 
