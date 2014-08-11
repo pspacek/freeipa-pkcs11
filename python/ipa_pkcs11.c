@@ -16,16 +16,40 @@ CK_BBOOL false = CK_FALSE;
  */
 static PyObject *IPA_PKCS11Error;  //general error
 static PyObject *IPA_PKCS11NotFound;  //key not found
-static PyObject *IPA_PKCS11DuplicationError; //key aleready exists
+static PyObject *IPA_PKCS11DuplicationError; //key already exists
 
 /***********************************************************************
  * Support functions
  */
 
 /**
+ * Convert a unicode string to the utf8 encoded char array
+ * @param unicode input python unicode object
+ * @param l length of returned string
+ * Returns NULL if an error occurs, else pointer to string
+ */
+char* unicode_to_char_array(PyObject *unicode, Py_ssize_t *l){
+	PyObject* utf8_str = PyUnicode_AsUTF8String(unicode);
+	if (utf8_str == NULL){
+		PyErr_SetString(IPA_PKCS11Error, "Unable to encode UTF-8");
+		return NULL;
+	}
+	Py_XINCREF(utf8_str);
+	char* bytes = PyString_AS_STRING(utf8_str);
+	if (bytes == NULL){
+		PyErr_SetString(IPA_PKCS11Error, "Unable to get bytes from string");
+		*l = 0;
+	} else {
+		*l = PyString_Size(utf8_str);
+	}
+	Py_XDECREF(utf8_str);
+	return bytes;
+}
+
+/**
  * Tests result value of pkc11 operations
  * Returns 1 if everything is ok
- * Returns 0 if error occurs and set the error message
+ * Returns 0 if an error occurs and set the error message
  */
 int check_return_value(CK_RV rv, const char *message) {
 	char* errmsg = NULL;
@@ -45,7 +69,7 @@ int check_return_value(CK_RV rv, const char *message) {
 	return 1;
 }
 
-/**
+/***********************************************************************
  * IPA_PKCS11 object
  */
 typedef struct {
@@ -186,23 +210,27 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
     CK_RV rv;
     CK_OBJECT_HANDLE symKey;
-	CK_BYTE *subject = NULL;
     CK_BYTE *id = NULL;
+    int id_length = 0;
     CK_ULONG keyLength = 16;
-
+    PyObject *labelUnicode = NULL;
+    Py_ssize_t label_length = 0;
 	static char *kwlist[] = {"subject", "id", "key_length", NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "ss|k", kwlist,
-			&subject, &id, &keyLength)){
+	//TODO check long overflow
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|k", kwlist,
+			&labelUnicode, &id, &id_length, &keyLength)){
 		return NULL;
 	}
 
-
+	Py_XINCREF(labelUnicode);
+	CK_BYTE *label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
+	Py_XDECREF(labelUnicode);
     CK_MECHANISM mechanism = { //TODO param?
          CKM_AES_KEY_GEN, NULL_PTR, 0
     };
     CK_ATTRIBUTE symKeyTemplate[] = {
-         {CKA_ID, id, sizeof(id) - 1}, //TODO test -1
-         {CKA_LABEL, subject, sizeof(subject) - 1}, //TODO test -1
+         {CKA_ID, id, id_length},
+         {CKA_LABEL, label, label_length},
          {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
          {CKA_PRIVATE, &true, sizeof(true)}, //TODO param?
          {CKA_ENCRYPT, &false, sizeof(false)}, //TODO param?
@@ -237,13 +265,19 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
 {
     CK_RV rv;
     CK_ULONG modulusBits = 2048;
-    CK_BYTE *subject = NULL;
     CK_BYTE *id = NULL;
+    int id_length = 0;
+    PyObject* labelUnicode = NULL;
+    Py_ssize_t label_length = 0;
 	static char *kwlist[] = {"subject", "id", "modulus_bits", NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "ss|k", kwlist,
-			&subject, &id, &modulusBits)){
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|k", kwlist,
+			&labelUnicode, &id, &id_length, &modulusBits)){
 		return NULL;
 	}
+
+	Py_XINCREF(labelUnicode);
+	CK_BYTE *label = unicode_to_char_array(labelUnicode, &label_length);
+	Py_XDECREF(labelUnicode);
 
     CK_OBJECT_HANDLE publicKey, privateKey;
     CK_MECHANISM mechanism = {
@@ -254,16 +288,16 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
 
     CK_BYTE publicExponent[] = { 1, 0, 1 }; /* 65537 (RFC 6376 section 3.3.1)*/
     CK_ATTRIBUTE publicKeyTemplate[] = {
-         {CKA_ID, id, sizeof(id) - 1},
-         {CKA_LABEL, subject, sizeof(subject) - 1},
+         {CKA_ID, id, id_length},
+         {CKA_LABEL, label, label_length},
          {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
          {CKA_WRAP, &true, sizeof(true)}, //TODO param?
          {CKA_MODULUS_BITS, &modulusBits, sizeof(modulusBits)}, //TODO param
          {CKA_PUBLIC_EXPONENT, publicExponent, 3},
     };
     CK_ATTRIBUTE privateKeyTemplate[] = {
-         {CKA_ID, id, sizeof(id) - 1},
-         {CKA_LABEL, subject, sizeof(subject) - 1},
+         {CKA_ID, id, id_length},
+         {CKA_LABEL, label, label_length},
          {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
          {CKA_PRIVATE, &true, sizeof(true)}, //TODO param?
          {CKA_SENSITIVE, &false, sizeof(false)}, // prevents wrapping
