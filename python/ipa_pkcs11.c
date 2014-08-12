@@ -485,6 +485,28 @@ IPA_PKCS11_get_key_handler(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	return Py_BuildValue("k",object);
 }
 
+/**
+ * delete key
+ */
+static PyObject *
+IPA_PKCS11_delete_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
+	CK_RV rv;
+    CK_OBJECT_HANDLE_PTR key_handler = NULL;
+	static char *kwlist[] = {"key_handler", NULL };
+	//TODO check long overflow
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|", kwlist,
+			 &key_handler)){
+		return NULL;
+	}
+	rv = self->p11->C_DestroyObject(self->session, key_handler);
+	if(!check_return_value(rv, "object deletion")){
+		return NULL;
+	}
+
+	return Py_None;
+}
+
 static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "initialize",
 		(PyCFunction) IPA_PKCS11_initialize, METH_VARARGS,
@@ -501,6 +523,9 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "get_key_handler",
 		(PyCFunction) IPA_PKCS11_get_key_handler, METH_VARARGS|METH_KEYWORDS,
 		"Find key" },
+		{ "delete_key",
+		(PyCFunction) IPA_PKCS11_delete_key, METH_VARARGS|METH_KEYWORDS,
+		"Delete key" },
 		{ NULL } /* Sentinel */
 };
 
