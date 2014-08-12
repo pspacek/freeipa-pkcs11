@@ -30,7 +30,7 @@ setup(name='ipa_pkcs11',
       description = 'FreeIPA pkcs11 utils',
       author = 'Martin Basti, Petr Spacek',
       email = 'mbasti@redhat.com, pspacek@redhat.com',
-      license = '',  # TODO
+      license = 'GPLv2+',
       url='http://www.freeipa.org',  # TODO add more specific address
       long_description = """
       FreeIPA key manipulation utils.
