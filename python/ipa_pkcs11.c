@@ -81,30 +81,37 @@ int check_return_value(CK_RV rv, const char *message) {
 }
 
 /*
- * Find key by 'id' or 'label' and 'class'
+ * Find key with specified attributes ('id' or 'label' and 'class' are required)
  *
  * id or label and class must be specified
  *
- * @param id key ID, (if value is NULL, will find key only by label)
+ * Function return only one key, if more keys meet the search parameters,
+ * exception will be raised
+ *
+ * @param id key ID, (if value is NULL, will not be used to find key)
  * @param idLen key ID length
- * @param label key label (if value is NULL, will find key only by ID)
+ * @param label key label (if value is NULL, will not be used to find key)
  * @param labelLen key label length
  * @param class key class
+ * @param cka_wrap  (if value is NULL, will not be used to find key)
+ * @param cka_unwrap (if value is NULL, will not be used to find key)
  * @param object
  * @return 1 if object was found, otherwise return 0 and set the exception
  *
  * @raise IPA_PKCS11NotFound if no result is returned
+ * @raise IPA_PKCS11DuplicationError if more then 1 key meet the parameters
  */
 int
-_find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG idLen,
+_get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG idLen,
 		CK_BYTE_PTR label, CK_ULONG labelLen,
-		CK_OBJECT_CLASS class, CK_OBJECT_HANDLE *object)
+		CK_OBJECT_CLASS class, CK_BBOOL *cka_wrap,
+		CK_BBOOL *cka_unwrap, CK_OBJECT_HANDLE *object)
 {
 	/* specify max number of possible attributes, increase this number whenever
 	 * new attribute is added and don't forget to increase attr_count with each
 	 * set attribute
 	 */
-	unsigned int max_possible_attributes = 3;
+	unsigned int max_possible_attributes = 5;
 	CK_ATTRIBUTE template[max_possible_attributes];
 	unsigned int attr_count = 0;
 
@@ -125,6 +132,18 @@ _find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG idLen,
     	template[attr_count].ulValueLen = idLen;
     	++attr_count;
     }
+    if (cka_wrap!=NULL){
+    	template[attr_count].type = CKA_WRAP;
+    	template[attr_count].pValue = (void *) cka_wrap;
+    	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
+    	++attr_count;
+    }
+    if (cka_unwrap!=NULL){
+    	template[attr_count].type = CKA_UNWRAP;
+    	template[attr_count].pValue = (void *) cka_unwrap;
+    	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
+    	++attr_count;
+    }
 
     /* Set CLASS */
 	template[attr_count].type = CKA_CLASS;
@@ -137,19 +156,23 @@ _find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG idLen,
     if(!check_return_value(rv, "Find key init"))
     	return 0;
 
-    rv = self->p11->C_FindObjects(self->session, &object, 1, &objectCount);
+    rv = self->p11->C_FindObjects(self->session, object, 1, &objectCount);
     if(!check_return_value(rv, "Find key"))
     	return 0;
-
-    if (objectCount != 1) { //TODO should be here NotFound error
-    	rv = (CKR_VENDOR_DEFINED | 1);
-    	if(!check_return_value(rv, "find_key_id: 1 key expected"))
-    		return 0;
-    }
 
     rv = self->p11->C_FindObjectsFinal(self->session);
     if(!check_return_value(rv, "Find objects final"))
     	return 0;
+    //TODO objectCount comparation, should it be >1 ?
+    if (objectCount == 0) {
+    	PyErr_SetString(IPA_PKCS11NotFound, "Key not found");
+    	return 0;
+    }
+    else if (objectCount > 1) { //TODO should be here NotFound error
+    	PyErr_SetString(IPA_PKCS11DuplicationError, "_get_key: more than 1 key found");
+    	return 0;
+    }
+
     return 1;
 }
 
@@ -407,33 +430,59 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
  *
  */
 static PyObject *
-IPA_PKCS11_find_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+IPA_PKCS11_get_key_handler(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
-    CK_RV rv;
-    CK_OBJECT_HANDLE symKey;
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
     CK_BYTE *id = NULL;
+    CK_BBOOL *ckawrap = NULL;
+    CK_BBOOL *ckaunwrap = NULL;
     int id_length = 0;
     CK_ULONG keyLength = 16;
     PyObject *labelUnicode = NULL;
+    PyObject *ckaWrapBool = NULL;
+    PyObject *ckaUnwrapBool = NULL;
     Py_ssize_t label_length = 0;
-	static char *kwlist[] = {"class", "label", "id", NULL };
+	static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
 	//TODO check long overflow
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#", kwlist,
-			 &class, &labelUnicode, &id, &id_length, &keyLength)){
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#OO", kwlist,
+			 &class, &labelUnicode, &id, &id_length, &keyLength,
+			 &ckaWrapBool, &ckaUnwrapBool)){
 		return NULL;
 	}
+
 	CK_BYTE *label = NULL;
 	if (labelUnicode != NULL){
-		Py_XINCREF(labelUnicode);
+		Py_INCREF(labelUnicode);
 		label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
-		Py_XDECREF(labelUnicode);
+		Py_DECREF(labelUnicode);
 	}
+
+	if(ckaWrapBool!=NULL){
+		Py_INCREF(ckaWrapBool);
+		if (PyObject_IsTrue(ckaWrapBool)){
+			ckawrap = &true;
+		} else {
+			ckawrap = &false;
+		}
+		Py_DECREF(ckaWrapBool);
+	}
+
+	if(ckaUnwrapBool!=NULL){
+		Py_INCREF(ckaUnwrapBool);
+		if (PyObject_IsTrue(ckaWrapBool)){
+			ckawrap = &true;
+		} else {
+			ckawrap = &false;
+		}
+		Py_DECREF(ckaUnwrapBool);
+	}
+
 	CK_OBJECT_HANDLE *object = 0;
-	if(! _find_key(self, id, id_length, label, label_length, class, &object))
+	if(! _get_key(self, id, id_length, label, label_length, class, ckawrap,
+			ckaunwrap, &object))
 		return NULL;
 
-	return Py_None;
+	return Py_BuildValue("k",object);
 }
 
 static PyMethodDef IPA_PKCS11_methods[] = {
@@ -449,8 +498,8 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "generate_replica_key_pair",
 		(PyCFunction) IPA_PKCS11_generate_replica_key_pair, METH_VARARGS|METH_KEYWORDS,
 		"Generate replica key pair" },
-		{ "find_key",
-		(PyCFunction) IPA_PKCS11_find_key, METH_VARARGS|METH_KEYWORDS,
+		{ "get_key_handler",
+		(PyCFunction) IPA_PKCS11_get_key_handler, METH_VARARGS|METH_KEYWORDS,
 		"Find key" },
 		{ NULL } /* Sentinel */
 };

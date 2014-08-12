@@ -10,10 +10,10 @@ if __name__ == '__main__':
         p11.initialize(0, "1234", "/usr/lib64/softhsm/libsofthsm2.so")
         p11.generate_master_key(u"žžž-aest", "m", key_length=16)
         p11.generate_replica_key_pair(u"replica1", "id1")
-        p11.find_key(ipa_pkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica1")
+        print 'key handler', p11.get_key_handler(ipa_pkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica1", cka_wrap=True)
         try:
-            p11.find_key(ipa_pkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica666")
+            print 'key handler', p11.get_key_handler(ipa_pkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica666")
         except ipa_pkcs11.NotFound:
-            pass
+            print "OK: NotFound"
     finally:
         p11.finalize()
