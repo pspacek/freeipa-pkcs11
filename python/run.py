@@ -4,6 +4,9 @@
 import ipa_pkcs11
 from ipa_pkcs11 import IPA_PKCS11
 
+def str_to_hex(s):
+    return ''.join("{:02x}".format(ord(c)) for c in s)
+
 if __name__ == '__main__':
     p11 = IPA_PKCS11()
     try:
@@ -16,6 +19,10 @@ if __name__ == '__main__':
             print 'key handler', p11.get_key_handler(ipa_pkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica666")
         except ipa_pkcs11.NotFound:
             print "OK: NotFound"
-        p11.delete_key(key)
+        print "Delete key ", p11.delete_key(key)
+        key2 = p11.get_key_handler(ipa_pkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest", id="m")
+        print "Got key ", key
+        key2_attrs = p11.export_secret_key(key2)
+        print "Export secret key: ", str_to_hex(key2_attrs["value"])
     finally:
         p11.finalize()

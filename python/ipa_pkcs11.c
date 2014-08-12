@@ -477,7 +477,7 @@ IPA_PKCS11_get_key_handler(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 		Py_DECREF(ckaUnwrapBool);
 	}
 
-	CK_OBJECT_HANDLE *object = 0;
+	CK_OBJECT_HANDLE object = 0;
 	if(! _get_key(self, id, id_length, label, label_length, class, ckawrap,
 			ckaunwrap, &object))
 		return NULL;
@@ -492,7 +492,7 @@ static PyObject *
 IPA_PKCS11_delete_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
-    CK_OBJECT_HANDLE_PTR key_handler = NULL;
+    CK_OBJECT_HANDLE key_handler = 0;
 	static char *kwlist[] = {"key_handler", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|", kwlist,
@@ -505,6 +505,54 @@ IPA_PKCS11_delete_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	}
 
 	return Py_None;
+}
+
+/**
+ * export secret key
+ */
+static PyObject *
+IPA_PKCS11_export_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
+	CK_RV rv;
+	CK_UTF8CHAR_PTR value = NULL;
+    CK_OBJECT_HANDLE key_handler = 0;
+    PyObject *ret = NULL;
+	static char *kwlist[] = {"key_handler", NULL };
+	//TODO check long overflow
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|", kwlist,
+			 &key_handler)){
+		return NULL;
+	}
+
+	//TODO which attributes should be returned ????
+    CK_ATTRIBUTE obj_template[] = {
+         {CKA_VALUE, NULL_PTR, 0}
+    };
+
+    rv = self->p11->C_GetAttributeValue(self->session, key_handler, obj_template, 1);
+    if (!check_return_value(rv, "get attribute value - prepare")){
+    	return NULL;
+    }
+
+    /* Set proper size for attributes*/
+    value = (CK_UTF8CHAR_PTR) malloc(obj_template[0].ulValueLen * sizeof(CK_BYTE));
+    obj_template[0].pValue = value;
+
+    rv = self->p11->C_GetAttributeValue(self->session, key_handler, obj_template, 1);
+    if (!check_return_value(rv, "get attribute value")){
+    	free(value);
+    	return NULL;
+    }
+
+    if (obj_template[0].ulValueLen <= 0){
+    	PyErr_SetString(IPA_PKCS11NotFound, "Value not found");
+    	free(value);
+    	return NULL;
+    }
+    ret = Py_BuildValue("{s:s#}",
+    		"value", obj_template[0].pValue, obj_template[0].ulValueLen);
+    free(value);
+	return ret;
 }
 
 static PyMethodDef IPA_PKCS11_methods[] = {
@@ -526,6 +574,9 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "delete_key",
 		(PyCFunction) IPA_PKCS11_delete_key, METH_VARARGS|METH_KEYWORDS,
 		"Delete key" },
+		{ "export_secret_key",
+		(PyCFunction) IPA_PKCS11_export_secret_key, METH_VARARGS|METH_KEYWORDS,
+		"Export secret key" },
 		{ NULL } /* Sentinel */
 };
 
