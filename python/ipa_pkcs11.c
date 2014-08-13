@@ -660,13 +660,13 @@ static PyObject *
 IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
-    CK_OBJECT_HANDLE key_handler = 0;
+    CK_OBJECT_HANDLE object = 0;
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
     CK_KEY_TYPE keyType = CKK_RSA;
 	static char *kwlist[] = {"key_handler", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|", kwlist,
-			 &key_handler)){
+			 &object)){
 		return NULL;
 	}
 
@@ -675,7 +675,7 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
          {CKA_KEY_TYPE, &keyType, sizeof(keyType)}
     };
 
-    rv = self->p11->C_GetAttributeValue(self->session, key_handler, obj_template, 2);
+    rv = self->p11->C_GetAttributeValue(self->session, object, obj_template, 2);
     if(!check_return_value(rv, "export_public_key: get RSA public key values"))
     	return NULL;
 
@@ -686,7 +686,7 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 
     switch (keyType){
     case CKK_RSA:
-    	return IPA_PKCS11_export_RSA_public_key(self, key_handler);
+    	return IPA_PKCS11_export_RSA_public_key(self, object);
     	break;
     default:
     	PyErr_SetString(IPA_PKCS11Error, "export_public_key: unsupported key type");
