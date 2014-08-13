@@ -2,6 +2,11 @@
 #include "structmember.h"
 
 #include <pkcs11.h>
+#include <openssl/asn1.h>
+#include <openssl/x509.h>
+#include <openssl/evp.h>
+#include <openssl/rsa.h>
+#include <openssl/bn.h>
 
 #include "library.h"
 
@@ -163,12 +168,12 @@ _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG idLen,
     rv = self->p11->C_FindObjectsFinal(self->session);
     if(!check_return_value(rv, "Find objects final"))
     	return 0;
-    //TODO objectCount comparation, should it be >1 ?
+    //TODO duplication detection doesnt work
     if (objectCount == 0) {
     	PyErr_SetString(IPA_PKCS11NotFound, "Key not found");
     	return 0;
     }
-    else if (objectCount > 1) { //TODO should be here NotFound error
+    else if (objectCount > 1) {
     	PyErr_SetString(IPA_PKCS11DuplicationError, "_get_key: more than 1 key found");
     	return 0;
     }
@@ -555,6 +560,142 @@ IPA_PKCS11_export_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	return ret;
 }
 
+/**
+ * export RSA public key
+ */
+static PyObject *
+IPA_PKCS11_export_RSA_public_key(IPA_PKCS11* self, CK_OBJECT_HANDLE object)
+{
+	CK_RV rv;
+	PyObject *ret = NULL;
+
+    int pp_len;
+    unsigned char *pp = NULL;
+    EVP_PKEY *pkey = NULL;
+    BIGNUM *e = NULL;
+    BIGNUM *n = NULL;
+    RSA *rsa = NULL;
+    CK_BYTE_PTR modulus = NULL;
+    CK_BYTE_PTR exponent = NULL;
+    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
+    CK_KEY_TYPE keyType = CKK_RSA;
+
+    CK_ATTRIBUTE obj_template[] = {
+         {CKA_MODULUS, NULL_PTR, 0},
+         {CKA_PUBLIC_EXPONENT, NULL_PTR, 0},
+         {CKA_CLASS, &class, sizeof(class)},
+         {CKA_KEY_TYPE, &keyType, sizeof(keyType)}
+    };
+
+    rv = self->p11->C_GetAttributeValue(self->session, object, obj_template, 4);
+    if(!check_return_value(rv, "get RSA public key values - prepare"))
+    	return NULL;
+
+    /* Set proper size for attributes*/
+    modulus = (CK_BYTE_PTR) malloc(obj_template[0].ulValueLen * sizeof(CK_BYTE));
+    obj_template[0].pValue = modulus;
+    exponent = (CK_BYTE_PTR) malloc(obj_template[1].ulValueLen * sizeof(CK_BYTE));
+    obj_template[1].pValue = exponent;
+
+    rv = self->p11->C_GetAttributeValue(self->session, object, obj_template, 4);
+    if(!check_return_value(rv, "get RSA public key values"))
+    	return NULL;
+
+    /* Check if the key is RSA public key */
+    if (class != CKO_PUBLIC_KEY){
+    	PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: required public key class");
+    	return NULL;
+    }
+
+    if (keyType != CKK_RSA){
+    	PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: required RSA key type");
+    	return NULL;
+    }
+
+    rsa = RSA_new();
+    pkey = EVP_PKEY_new();
+    n = BN_bin2bn((const unsigned char *) modulus, obj_template[0].ulValueLen * sizeof(CK_BYTE), NULL);
+    if( n == NULL ) {
+        PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: internal error: unable to convert modulus");
+        goto final;
+    }
+
+    e = BN_bin2bn((const unsigned char *) exponent, obj_template[1].ulValueLen * sizeof(CK_BYTE), NULL);
+    if( e == NULL ) {
+        PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: internal error: unable to convert exponent");
+        goto final;
+    }
+
+    /* set modulus and exponent */
+    rsa->n = n;
+    rsa->e = e;
+
+    if (EVP_PKEY_set1_RSA(pkey,rsa) == 0){
+        PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: internal error: EVP_PKEY_set1_RSA failed");
+        goto final;
+    }
+
+    pp_len = i2d_PUBKEY(pkey,&pp);
+    ret = Py_BuildValue("s#",pp, pp_len);
+
+final:
+	if (rsa != NULL) {
+		RSA_free(rsa); // this free also 'n' and 'e'
+	} else {
+		if (n != NULL) BN_free(n);
+		if (e != NULL) BN_free(e);
+	}
+
+	if (pkey != NULL) EVP_PKEY_free(pkey);
+	if (pp != NULL) free(pp);
+	return ret;
+}
+
+/**
+ * Export public key
+ *
+ * Export public key in SubjectPublicKeyInfo (RFC5280) DER encoded format
+ */
+static PyObject *
+IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
+	CK_RV rv;
+    CK_OBJECT_HANDLE key_handler = 0;
+    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
+    CK_KEY_TYPE keyType = CKK_RSA;
+	static char *kwlist[] = {"key_handler", NULL };
+	//TODO check long overflow
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|", kwlist,
+			 &key_handler)){
+		return NULL;
+	}
+
+    CK_ATTRIBUTE obj_template[] = {
+         {CKA_CLASS, &class, sizeof(class)},
+         {CKA_KEY_TYPE, &keyType, sizeof(keyType)}
+    };
+
+    rv = self->p11->C_GetAttributeValue(self->session, key_handler, obj_template, 2);
+    if(!check_return_value(rv, "export_public_key: get RSA public key values"))
+    	return NULL;
+
+    if (class != CKO_PUBLIC_KEY){
+    	PyErr_SetString(IPA_PKCS11Error, "export_public_key: required public key class");
+    	return NULL;
+    }
+
+    switch (keyType){
+    case CKK_RSA:
+    	return IPA_PKCS11_export_RSA_public_key(self, key_handler);
+    	break;
+    default:
+    	PyErr_SetString(IPA_PKCS11Error, "export_public_key: unsupported key type");
+    }
+
+    return NULL;
+
+}
+
 static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "initialize",
 		(PyCFunction) IPA_PKCS11_initialize, METH_VARARGS,
@@ -574,9 +715,12 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "delete_key",
 		(PyCFunction) IPA_PKCS11_delete_key, METH_VARARGS|METH_KEYWORDS,
 		"Delete key" },
-		{ "export_secret_key",
+		{ "export_secret_key", //TODO deprecated, delete it
 		(PyCFunction) IPA_PKCS11_export_secret_key, METH_VARARGS|METH_KEYWORDS,
 		"Export secret key" },
+		{ "export_public_key",
+		(PyCFunction) IPA_PKCS11_export_public_key, METH_VARARGS|METH_KEYWORDS,
+		"Export public key" },
 		{ NULL } /* Sentinel */
 };
 

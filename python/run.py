@@ -19,10 +19,12 @@ if __name__ == '__main__':
             print 'key handler', p11.get_key_handler(ipa_pkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica666")
         except ipa_pkcs11.NotFound:
             print "OK: NotFound"
-        print "Delete key ", p11.delete_key(key)
         key2 = p11.get_key_handler(ipa_pkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest", id="m")
         print "Got key ", key
         key2_attrs = p11.export_secret_key(key2)
         print "Export secret key: ", str_to_hex(key2_attrs["value"])
+        pub = p11.export_public_key(key)
+        print "Public key", str_to_hex(pub)
+        print "Delete key ", p11.delete_key(key)
     finally:
         p11.finalize()
