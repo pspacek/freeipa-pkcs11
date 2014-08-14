@@ -375,7 +375,7 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
     int id_length = 0;
     PyObject* labelUnicode = NULL;
     Py_ssize_t label_length = 0;
-	static char *kwlist[] = {"subject", "id", "modulus_bits", NULL };
+	static char *kwlist[] = {"label", "id", "modulus_bits", NULL };
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|k", kwlist,
 			&labelUnicode, &id, &id_length, &modulusBits)){
 		return NULL;
@@ -693,7 +693,169 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     }
 
     return NULL;
+}
 
+/**
+ * Import RSA public key
+ *
+ */
+static PyObject *
+IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_t label_length,
+		CK_BYTE *id, Py_ssize_t id_length, EVP_PKEY *pkey, PyObject *kwds)
+{
+    CK_RV rv;
+    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
+    CK_KEY_TYPE keyType = CKK_RSA;
+    PyObject *cka_token_pybool = NULL;
+    PyObject *cka_wrap_pybool = NULL;
+    PyObject *cka_encrypt_pybool = NULL;
+    CK_BBOOL *cka_token = &true;
+    CK_BBOOL *cka_wrap = &true;
+    CK_BBOOL *cka_encrypt = &true;
+    RSA *rsa = NULL;
+	CK_BYTE_PTR modulus = NULL;
+	int modulus_len = 0;
+	CK_BYTE_PTR exponent = NULL;
+	int exponent_len = 0;
+
+	static char *kwlist[] = {"cka_token", "cka_wrap", "cka_encrypt" , NULL };
+	if (!PyArg_ParseTupleAndKeywords(PyTuple_New(0), kwds, "|OOO", kwlist,
+			cka_token_pybool, cka_wrap_pybool,
+			cka_encrypt_pybool)){
+		return NULL;
+	}
+
+
+
+	if(cka_token_pybool != NULL){
+		Py_INCREF(cka_token_pybool);
+		if (PyObject_IsTrue(cka_token_pybool)){
+			cka_token = &true;
+		} else {
+			cka_token = &false;
+		}
+		Py_DECREF(cka_token_pybool);
+	}
+
+	if(cka_wrap_pybool != NULL){
+		Py_INCREF(cka_wrap_pybool);
+		if (PyObject_IsTrue(cka_wrap_pybool)){
+			cka_wrap = &true;
+		} else {
+			cka_wrap = &false;
+		}
+		Py_DECREF(cka_wrap_pybool);
+	}
+
+	if(cka_encrypt_pybool != NULL){
+		Py_INCREF(cka_encrypt_pybool);
+		if (PyObject_IsTrue(cka_encrypt_pybool)){
+			cka_encrypt = &true;
+		} else {
+			cka_encrypt = &false;
+		}
+		Py_DECREF(cka_encrypt_pybool);
+	}
+
+    //TODO detect if type is RSA
+
+    rsa = EVP_PKEY_get1_RSA(pkey);
+    if (rsa == NULL){
+    	PyErr_SetString(IPA_PKCS11Error, "import_RSA_public_key: EVP_PKEY_get1_RSA error");
+    	free(pkey);
+    	return NULL;
+    }
+
+    /* convert BIGNUM to binary array */
+    modulus = (CK_BYTE_PTR) malloc(BN_num_bytes(rsa->n));
+    modulus_len = BN_bn2bin(rsa->n, (unsigned char *) modulus);
+    if(modulus == NULL){
+    	PyErr_SetString(IPA_PKCS11Error, "import_RSA_public_key: BN_bn2bin modulus error");
+    	//TODO free
+    	return NULL;
+    }
+
+    exponent = (CK_BYTE_PTR) malloc(BN_num_bytes(rsa->e));
+    exponent_len = BN_bn2bin(rsa->e, (unsigned char *) exponent);
+    if(exponent == NULL){
+    	PyErr_SetString(IPA_PKCS11Error, "import_RSA_public_key: BN_bn2bin exponent error");
+    	//TODO free
+    	return NULL;
+    }
+
+	CK_ATTRIBUTE template[] = {
+		{CKA_ID, id, id_length},
+		{CKA_CLASS, &class, sizeof(class)},
+		{CKA_KEY_TYPE, &keyType, sizeof(keyType)},
+		{CKA_TOKEN, cka_token, sizeof(CK_BBOOL)},
+		{CKA_LABEL, label, label_length},
+		{CKA_WRAP, cka_wrap, sizeof(CK_BBOOL)},
+		{CKA_ENCRYPT, cka_encrypt, sizeof(CK_BBOOL)},
+		{CKA_MODULUS, modulus, modulus_len},
+		{CKA_PUBLIC_EXPONENT, exponent, exponent_len}
+		};
+    CK_OBJECT_HANDLE object;
+
+    rv = self->p11->C_CreateObject(self->session, template,
+    		sizeof(template)/sizeof(CK_ATTRIBUTE), &object);
+    if(!check_return_value(rv, "create public key object"))
+    	return NULL;
+
+    if (rsa != NULL) RSA_free(rsa);
+
+	return PyLong_FromUnsignedLong(object);
+}
+
+/**
+ * Import RSA public key
+ *
+ */
+static PyObject *
+IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
+	PyObject *ret = NULL;
+	PyObject *labelUnicode = NULL;
+    CK_BYTE *id = NULL;
+    CK_BYTE *data = NULL;
+    CK_UTF8CHAR *label = NULL;
+    Py_ssize_t id_length = 0;
+    Py_ssize_t data_length = 0;
+    Py_ssize_t label_length = 0;
+    EVP_PKEY *pkey = NULL;
+
+	if (!PyArg_ParseTuple(args, "Us#s#", &labelUnicode, &id, &id_length,
+		&data, &data_length)){
+		return NULL;
+	}
+	Py_XINCREF(labelUnicode);
+	label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
+	Py_XDECREF(labelUnicode);
+
+	//TODO disallow if exist
+	/* decode from ASN1 DER */
+    pkey = d2i_PUBKEY(NULL, (const unsigned char **) &data, data_length);
+    if(pkey == NULL){
+    	PyErr_SetString(IPA_PKCS11Error, "import_public_key: d2i_PUBKEY error");
+    	return NULL;
+    }
+	switch(pkey->type){
+	case EVP_PKEY_RSA:
+		ret = IPA_PKCS11_import_RSA_public_key(self, label, label_length,
+			id, id_length, pkey, kwds);
+		break;
+	case EVP_PKEY_DSA:
+		ret = NULL;
+		PyErr_SetString(IPA_PKCS11Error, "DSA is not supported");
+		break;
+	case EVP_PKEY_EC:
+		ret = NULL;
+		PyErr_SetString(IPA_PKCS11Error, "EC is not supported");
+		break;
+	default:
+		ret = NULL;
+		PyErr_SetString(IPA_PKCS11Error, "Unsupported key type");
+	}
+    if (pkey != NULL) EVP_PKEY_free(pkey);
+	return ret;
 }
 
 static PyMethodDef IPA_PKCS11_methods[] = {
@@ -721,6 +883,9 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "export_public_key",
 		(PyCFunction) IPA_PKCS11_export_public_key, METH_VARARGS|METH_KEYWORDS,
 		"Export public key" },
+		{ "import_public_key",
+		(PyCFunction) IPA_PKCS11_import_public_key, METH_VARARGS|METH_KEYWORDS,
+		"Import public key" },
 		{ NULL } /* Sentinel */
 };
 

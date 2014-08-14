@@ -25,6 +25,10 @@ if __name__ == '__main__':
         print "Export secret key: ", str_to_hex(key2_attrs["value"])
         pub = p11.export_public_key(key)
         print "Public key", str_to_hex(pub)
+        f = open("public_key.asn1.der", "w")
+        f.write(pub)
+        f.close()
         print "Delete key ", p11.delete_key(key)
+        print 'imported', p11.import_public_key(u'test_import', '1245', pub)
     finally:
         p11.finalize()
