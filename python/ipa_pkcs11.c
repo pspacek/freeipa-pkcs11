@@ -701,7 +701,7 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
  */
 static PyObject *
 IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_t label_length,
-		CK_BYTE *id, Py_ssize_t id_length, EVP_PKEY *pkey, PyObject *kwds)
+		CK_BYTE *id, Py_ssize_t id_length, EVP_PKEY *pkey, PyObject *attr_dict)
 {
     CK_RV rv;
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
@@ -718,43 +718,26 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
 	CK_BYTE_PTR exponent = NULL;
 	int exponent_len = 0;
 
-	static char *kwlist[] = {"cka_token", "cka_wrap", "cka_encrypt" , NULL };
-	if (!PyArg_ParseTupleAndKeywords(PyTuple_New(0), kwds, "|OOO", kwlist,
-			cka_token_pybool, cka_wrap_pybool,
-			cka_encrypt_pybool)){
-		return NULL;
-	}
-
-
-
-	if(cka_token_pybool != NULL){
-		Py_INCREF(cka_token_pybool);
-		if (PyObject_IsTrue(cka_token_pybool)){
-			cka_token = &true;
-		} else {
-			cka_token = &false;
+	PyObject *key = NULL;
+	PyObject *value = NULL;
+	Py_ssize_t pos = 0;
+	if (attr_dict != NULL){
+		while (PyDict_Next(attr_dict, &pos, &key, &value)){
+			if (!PyString_Check(key)){
+				PyErr_SetString(IPA_PKCS11Error, "String key is required for attribute name");
+				return NULL;
+			}
+			if(strcmp(PyString_AsString(key), "cka_token") == 0){
+				cka_token = PyObject_IsTrue(value) ? &true : &false;
+			} else if(strcmp(PyString_AsString(key), "cka_wrap") == 0){
+				cka_wrap = PyObject_IsTrue(value) ? &true : &false;
+			} else if(strcmp(PyString_AsString(key), "cka_encrypt") == 0){
+				cka_encrypt = PyObject_IsTrue(value) ? &true : &false;
+			} else {
+				PyErr_SetString(IPA_PKCS11Error, "Unknown attribute");
+				return NULL;
+			}
 		}
-		Py_DECREF(cka_token_pybool);
-	}
-
-	if(cka_wrap_pybool != NULL){
-		Py_INCREF(cka_wrap_pybool);
-		if (PyObject_IsTrue(cka_wrap_pybool)){
-			cka_wrap = &true;
-		} else {
-			cka_wrap = &false;
-		}
-		Py_DECREF(cka_wrap_pybool);
-	}
-
-	if(cka_encrypt_pybool != NULL){
-		Py_INCREF(cka_encrypt_pybool);
-		if (PyObject_IsTrue(cka_encrypt_pybool)){
-			cka_encrypt = &true;
-		} else {
-			cka_encrypt = &false;
-		}
-		Py_DECREF(cka_encrypt_pybool);
 	}
 
     //TODO detect if type is RSA
@@ -814,6 +797,7 @@ static PyObject *
 IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	PyObject *ret = NULL;
 	PyObject *labelUnicode = NULL;
+	PyObject *attrs = NULL;
     CK_BYTE *id = NULL;
     CK_BYTE *data = NULL;
     CK_UTF8CHAR *label = NULL;
@@ -822,13 +806,15 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     Py_ssize_t label_length = 0;
     EVP_PKEY *pkey = NULL;
 
-	if (!PyArg_ParseTuple(args, "Us#s#", &labelUnicode, &id, &id_length,
-		&data, &data_length)){
+    static char *kwlist[] = {"label", "id", "data", "attrs" , NULL };
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#|O", kwlist, &labelUnicode, &id, &id_length,
+		&data, &data_length, &attrs)){
 		return NULL;
 	}
 	Py_XINCREF(labelUnicode);
 	label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
 	Py_XDECREF(labelUnicode);
+
 
 	//TODO disallow if exist
 	/* decode from ASN1 DER */
@@ -840,7 +826,7 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	switch(pkey->type){
 	case EVP_PKEY_RSA:
 		ret = IPA_PKCS11_import_RSA_public_key(self, label, label_length,
-			id, id_length, pkey, kwds);
+			id, id_length, pkey, attrs);
 		break;
 	case EVP_PKEY_DSA:
 		ret = NULL;

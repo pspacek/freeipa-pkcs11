@@ -29,6 +29,7 @@ if __name__ == '__main__':
         f.write(pub)
         f.close()
         print "Delete key ", p11.delete_key(key)
-        print 'imported', p11.import_public_key(u'test_import', '1245', pub)
+        print 'imported', p11.import_public_key(u'test_import', '1245', pub, 
+                                                {'cka_wrap': False})
     finally:
         p11.finalize()
