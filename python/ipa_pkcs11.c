@@ -706,9 +706,6 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
     CK_RV rv;
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
     CK_KEY_TYPE keyType = CKK_RSA;
-    PyObject *cka_token_pybool = NULL;
-    PyObject *cka_wrap_pybool = NULL;
-    PyObject *cka_encrypt_pybool = NULL;
     CK_BBOOL *cka_token = &true;
     CK_BBOOL *cka_wrap = &true;
     CK_BBOOL *cka_encrypt = &true;
