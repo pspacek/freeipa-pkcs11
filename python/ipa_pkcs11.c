@@ -721,6 +721,12 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
 	PyObject *key = NULL;
 	PyObject *value = NULL;
 	Py_ssize_t pos = 0;
+
+	if (pkey->type != EVP_PKEY_RSA){
+		PyErr_SetString(IPA_PKCS11Error, "Required RSA public key");
+		return NULL;
+	}
+
 	if (attr_dict != NULL){
 		while (PyDict_Next(attr_dict, &pos, &key, &value)){
 			if (!PyString_Check(key)){
@@ -739,8 +745,6 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
 			}
 		}
 	}
-
-    //TODO detect if type is RSA
 
     rsa = EVP_PKEY_get1_RSA(pkey);
     if (rsa == NULL){
