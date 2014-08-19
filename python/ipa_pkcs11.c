@@ -7,6 +7,7 @@
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include <openssl/bn.h>
+#include <openssl/bio.h>
 
 #include "library.h"
 
@@ -407,6 +408,7 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
          {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
          {CKA_PRIVATE, &true, sizeof(true)}, //TODO param?
          {CKA_SENSITIVE, &false, sizeof(false)}, // prevents wrapping
+         	 	 	 	 	 	 	 	 	 	 // TODO remove if bug is fixed
          	 	 	 	 	 	 	 	 	 	 //TODO param?
          {CKA_UNWRAP, &true, sizeof(true)}, //TODO param?
          {CKA_EXTRACTABLE, &true, sizeof(true)}, //TODO param?
@@ -816,6 +818,11 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
 	Py_XDECREF(labelUnicode);
 
+	/* check if attrs are in dict */
+	if(attrs != NULL && !PyDict_Check(attrs)){
+		PyErr_SetString(IPA_PKCS11Error, "attrs: required dictionary object");
+		return NULL;
+	}
 
 	//TODO disallow if exist
 	/* decode from ASN1 DER */
@@ -842,6 +849,279 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		PyErr_SetString(IPA_PKCS11Error, "Unsupported key type");
 	}
     if (pkey != NULL) EVP_PKEY_free(pkey);
+	return ret;
+}
+
+int
+wrap_secret_key(IPA_PKCS11* self, CK_OBJECT_HANDLE secretKey,
+		CK_OBJECT_HANDLE wrappingKey, CK_BYTE_PTR *wrapped_key, CK_ULONG *length,
+		CK_MECHANISM* wrappingMech)
+{
+     CK_RV rv;
+     CK_BYTE_PTR pWrappedKey = NULL;
+     CK_ULONG wrappedKeyLen = 0;
+
+     rv = self->p11->C_WrapKey(self->session, wrappingMech, wrappingKey,
+    		 secretKey, NULL, &wrappedKeyLen);
+     if(!check_return_value(rv, "master key wrapping: get buffer length"))
+    	 return 0;
+     pWrappedKey = malloc(wrappedKeyLen);
+     if (pWrappedKey == NULL) {
+	     rv = CKR_HOST_MEMORY;
+	     check_return_value(rv, "private key wrapping: buffer allocation");
+	     return 0;
+     }
+     rv = self->p11->C_WrapKey(self->session, wrappingMech, wrappingKey,
+    		 secretKey, pWrappedKey, &wrappedKeyLen);
+     if(!check_return_value(rv, "master key wrapping: real wrapping"))
+    	 return 0;
+
+     *wrapped_key = pWrappedKey;
+     *length = wrappedKeyLen;
+     return 1;
+}
+
+/**
+ * Export wrapped secret key
+ *
+ */
+static PyObject *
+IPA_PKCS11_export_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
+    CK_OBJECT_HANDLE object_secret_key = 0;
+    CK_OBJECT_HANDLE object_wrapping_key = 0;
+	CK_BYTE_PTR wrapped_key = NULL;
+	CK_ULONG wrapped_key_len = 0;
+	PyObject* ret = NULL;
+	char *der_encoded = NULL;
+	long der_encoded_len = 0;
+	ASN1_OCTET_STRING* os = NULL;
+	ASN1_OBJECT *aobj = NULL;
+	X509_ALGOR *alg = NULL;
+	X509_SIG *p8 = NULL;
+	BIO *bio = NULL;
+	CK_MECHANISM wrappingMech = {CKM_RSA_PKCS, NULL, 0};
+	CK_MECHANISM_TYPE wrappingMechType= CKM_RSA_PKCS;
+	/* currently we don't support parameter in mechanism */
+	int parameter_type = V_ASN1_UNDEF;
+	unsigned char *parameter_value = NULL;
+
+	static char *kwlist[] = {"secret_key", "wrapping_key", "wrapping_mech_type", NULL };
+	//TODO check long overflow
+	//TODO export method
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kk|k", kwlist,
+			 &object_secret_key, &object_wrapping_key, &wrappingMechType)){
+		return NULL;
+	}
+	wrappingMech.mechanism = wrappingMechType;
+
+	if(!wrap_secret_key(self, object_secret_key, object_wrapping_key,
+			&wrapped_key, &wrapped_key_len, &wrappingMech)){
+		return NULL;
+	}
+
+	os = ASN1_OCTET_STRING_new();
+	if (!ASN1_OCTET_STRING_set(os, wrapped_key, wrapped_key_len)) {
+		PyErr_SetString(IPA_PKCS11Error, "export_wrapped_private_key: Unable to set OCTET_STRING");
+		ret = NULL;
+		goto final;
+	}
+
+	/* Select openSSL algorithm object based on wrap method type */
+	switch(wrappingMechType){
+	case CKM_RSA_PKCS:
+		aobj = OBJ_nid2obj(NID_rsaEncryption);
+		break;
+	case CKM_RSA_PKCS_OAEP:
+		aobj = OBJ_nid2obj(NID_rsaesOaep);
+		break;
+	default:
+		PyErr_SetString(IPA_PKCS11Error, "export_wrapped_private_key: Unsupported wrapping algorithm type");
+		ret = NULL;
+		goto final;
+	}
+
+	if (aobj == NULL){
+		PyErr_SetString(IPA_PKCS11Error, "export_wrapped_private_key: Unable to get algorithm object");
+		ret = NULL;
+		goto final;
+	}
+
+	alg = X509_ALGOR_new();
+	if (!X509_ALGOR_set0(alg, aobj, parameter_type, (void *) parameter_value)){
+		PyErr_SetString(IPA_PKCS11Error, "export_wrapped_private_key: Unable to set X509_ALGOR");
+		ret = NULL;
+		goto final;
+	} else if(alg == NULL){
+		PyErr_SetString(IPA_PKCS11Error, "export_wrapped_private_key: X509_ALGOR is null");
+		ret = NULL;
+		goto final;
+	}
+
+	p8 = X509_SIG_new();
+	p8->algor = alg; //algorithm
+	p8->digest = os; //octet string -- wrapped key
+
+	bio = BIO_new(BIO_s_mem());
+	if (! i2d_PKCS8_bio(bio, p8)) {
+		PyErr_SetString(IPA_PKCS11Error, "export_wrapped_private_key: Conversion to ASN.1 failed");
+		ret = NULL;
+		goto final;
+	}
+
+	der_encoded_len = BIO_get_mem_data(bio, &der_encoded);
+	ret = Py_BuildValue("s#",der_encoded, der_encoded_len);
+
+final:
+	//TODO free
+	//TODO free alg, os if needed
+	if (p8 != NULL) X509_SIG_free(p8);
+	if (der_encoded != NULL) free(der_encoded);
+	return ret;
+}
+
+/**
+ * Export wrapped secret key
+ *
+ */
+static PyObject *
+IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
+	CK_RV rv;
+	CK_BYTE_PTR wrapped_key = NULL;
+	CK_ULONG wrapped_key_len = 0;
+	CK_ULONG unwrappingKey_object = 0;
+	CK_OBJECT_HANDLE unwrappedKey_object = 0;
+	PyObject* ret = NULL;
+	ASN1_OBJECT *aobj = NULL;
+	int parameter_type = V_ASN1_UNDEF;
+	unsigned char *parameter_value = NULL;
+	X509_SIG *p8 = NULL;
+	BIO *bio = NULL;
+	PyObject *labelUnicode = NULL;
+	PyObject *attrs = NULL;
+    CK_BYTE *id = NULL;
+    CK_UTF8CHAR *label = NULL;
+    Py_ssize_t id_length = 0;
+    Py_ssize_t label_length = 0;
+	int nid = 0;
+	PyObject *key = NULL;
+	PyObject *value = NULL;
+	Py_ssize_t pos = 0;
+	CK_BBOOL *cka_token = &true;
+	CK_BBOOL *cka_sensitive = &false;
+	CK_BBOOL *cka_extractable = &true;
+	CK_MECHANISM wrappingMech;
+	CK_OBJECT_CLASS keyClass = CKO_SECRET_KEY;
+	CK_KEY_TYPE keyType = CKK_DES;
+
+    static char *kwlist[] = {"label", "id", "data", "unwrapping_key",
+    		"key_class", "key_type", "attrs" , NULL };
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#k|kkO", kwlist, &labelUnicode, &id, &id_length,
+		&wrapped_key, &wrapped_key_len, &unwrappingKey_object, &keyClass,
+		&keyType, &attrs)){
+		return NULL;
+	}
+	Py_XINCREF(labelUnicode);
+	label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
+	Py_XDECREF(labelUnicode);
+
+	/* check if attrs are in dict */
+	if(attrs != NULL && !PyDict_Check(attrs)){
+		PyErr_SetString(IPA_PKCS11Error, "attrs: required dictionary object");
+		return NULL;
+	}
+
+	if (attrs != NULL){
+		while (PyDict_Next(attrs, &pos, &key, &value)){
+			if (!PyString_Check(key)){
+				PyErr_SetString(IPA_PKCS11Error, "String key is required for attribute name");
+				return NULL;
+			}
+			if(strcmp(PyString_AsString(key), "cka_token") == 0){
+				cka_token = PyObject_IsTrue(value) ? &true : &false;
+			} else if(strcmp(PyString_AsString(key), "cka_sensitive") == 0){
+				cka_sensitive = PyObject_IsTrue(value) ? &true : &false;
+			} else if(strcmp(PyString_AsString(key), "cka_extractable") == 0){
+				cka_extractable = PyObject_IsTrue(value) ? &true : &false;
+			} else {
+				PyErr_SetString(IPA_PKCS11Error, "Unknown attribute");
+				return NULL;
+			}
+		}
+	}
+
+	bio = BIO_new(BIO_s_mem());
+	if(BIO_write(bio, wrapped_key, wrapped_key_len) <= 0){
+		PyErr_SetString(IPA_PKCS11Error, "import_wrapped_private_key: Unable to save data into BIO");
+		ret = NULL;
+		goto final;
+	}
+
+	p8 = d2i_PKCS8_bio(bio, NULL);
+	if (p8 == NULL ) {
+		PyErr_SetString(IPA_PKCS11Error, "import_wrapped_private_key: Conversion from ASN.1 failed");
+		ret = NULL;
+		goto final;
+	}
+
+	aobj = ASN1_OBJECT_new();
+	X509_ALGOR_get0(&aobj, &parameter_type, (void **) &parameter_value, p8->algor);
+	/* TODO find the parameter value array length, we may need it in future*/
+
+	/* We currently support only methods without parameters */
+	if (parameter_type != V_ASN1_UNDEF){
+		PyErr_SetString(IPA_PKCS11Error, "import_wrapped_private_key: mechanism parameter defined: We currently support only methods without parameters");
+		ret = NULL;
+		goto final;
+	}
+
+	nid = OBJ_obj2nid(aobj);
+	/*
+	 * Supported types of algorithm
+	 */
+	switch(nid) {
+	case NID_rsaEncryption:
+		wrappingMech.mechanism = CKM_RSA_PKCS;
+		wrappingMech.pParameter = NULL;
+		wrappingMech.ulParameterLen = 0;
+		break;
+	case NID_rsaesOaep:
+		wrappingMech.mechanism = CKM_RSA_PKCS_OAEP;
+		wrappingMech.pParameter = NULL;
+		wrappingMech.ulParameterLen = 0;
+		break;
+	default:
+		PyErr_SetString(IPA_PKCS11Error, "import_wrapped_private_key: Unsupported wrapping method");
+		ret = NULL;
+		goto final;
+	}
+
+	//TODO more attributes?
+    CK_ATTRIBUTE template[] = {
+         { CKA_CLASS, &keyClass, sizeof(keyClass) },
+         { CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+         { CKA_ID, &id, sizeof(id) },
+         { CKA_LABEL, &label, label_length },
+         { CKA_TOKEN, cka_token, sizeof(CK_BBOOL) },
+         { CKA_SENSITIVE, cka_sensitive, sizeof(CK_BBOOL) },
+         { CKA_EXTRACTABLE, cka_extractable, sizeof(CK_BBOOL) }
+    };
+
+    rv = self->p11->C_UnwrapKey(self->session, &wrappingMech, unwrappingKey_object, p8->digest->data,
+    				p8->digest->length, template,
+    				sizeof(template)/sizeof(CK_ATTRIBUTE), &unwrappedKey_object);
+    if(!check_return_value(rv, "key unwrapping")){
+    	ret = NULL;
+    	goto final;
+    }
+
+    ret = PyLong_FromUnsignedLong(unwrappedKey_object);
+
+final:
+	//TODO free
+	//TODO free alg, os if needed
+	if (p8 != NULL) X509_SIG_free(p8);
 	return ret;
 }
 
@@ -873,6 +1153,12 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "import_public_key",
 		(PyCFunction) IPA_PKCS11_import_public_key, METH_VARARGS|METH_KEYWORDS,
 		"Import public key" },
+		{ "export_wrapped_private_key",
+		(PyCFunction) IPA_PKCS11_export_wrapped_private_key, METH_VARARGS|METH_KEYWORDS,
+		"Export wrapped private key" },
+		{ "import_wrapped_private_key",
+		(PyCFunction) IPA_PKCS11_import_wrapped_private_key, METH_VARARGS|METH_KEYWORDS,
+		"Import wrapped private key" },
 		{ NULL } /* Sentinel */
 };
 
@@ -963,6 +1249,8 @@ PyMODINIT_FUNC initipa_pkcs11(void) {
 	/**
 	 * Setting up module attributes
 	 */
+
+	/* Key Classes*/
 	PyObject *IPA_PKCS11_CLASS_PUBKEY_obj = PyInt_FromLong(CKO_PUBLIC_KEY);
 	PyObject_SetAttrString(m, "KEY_CLASS_PUBLIC_KEY", IPA_PKCS11_CLASS_PUBKEY_obj);
 	Py_XDECREF(IPA_PKCS11_CLASS_PUBKEY_obj);
@@ -975,4 +1263,17 @@ PyMODINIT_FUNC initipa_pkcs11(void) {
 	PyObject_SetAttrString(m, "KEY_CLASS_SECRET_KEY", IPA_PKCS11_CLASS_SECRETKEY_obj);
 	Py_XDECREF(IPA_PKCS11_CLASS_SECRETKEY_obj);
 
+	/* Key types*/
+	PyObject *IPA_PKCS11_KEY_TYPE_RSA_obj = PyInt_FromLong(CKK_RSA);
+	PyObject_SetAttrString(m, "KEY_TYPE_RSA", IPA_PKCS11_KEY_TYPE_RSA_obj);
+	Py_XDECREF(IPA_PKCS11_CLASS_SECRETKEY_obj);
+
+	/* Wrapping mech type*/
+	PyObject *IPA_PKCS11_MECH_RSA_PKCS_obj = PyInt_FromLong(CKM_RSA_PKCS);
+	PyObject_SetAttrString(m, "MECH_RSA_PKCS", IPA_PKCS11_MECH_RSA_PKCS_obj);
+	Py_XDECREF(IPA_PKCS11_MECH_RSA_PKCS_obj);
+
+	PyObject *IPA_PKCS11_MECH_RSA_PKCS_OAEP_obj = PyInt_FromLong(CKM_RSA_PKCS_OAEP);
+	PyObject_SetAttrString(m, "MECH_RSA_PKCS_OAEP", IPA_PKCS11_MECH_RSA_PKCS_OAEP_obj);
+	Py_XDECREF(IPA_PKCS11_MECH_RSA_PKCS_OAEP_obj);
 }
