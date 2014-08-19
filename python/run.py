@@ -32,9 +32,9 @@ if __name__ == '__main__':
         f.write(pub)
         f.close()
         print 'imported', p11.import_public_key(u'test_import', '1245', pub, 
-                                                {'cka_wrap': False})
+                                                {ipa_pkcs11.CKA_WRAP: False})
         wrapped = p11.export_wrapped_private_key(key3, key, 
-            wrapping_mech_type=ipa_pkcs11.MECH_RSA_PKCS_OAEP
+            wrapping_mech_type=ipa_pkcs11.MECH_RSA_PKCS
         )
         print "wrapped key:", str_to_hex(wrapped)
         f = open("wrapped_key.asn1.der", "wb")
@@ -44,6 +44,7 @@ if __name__ == '__main__':
             u'test_import_wrapped', '555', wrapped, key_priv, 
             key_type = ipa_pkcs11.KEY_TYPE_RSA
         )
+        p11.set_attribute(ipa_pkcs11.CKA_WRAP, True)
         print "Delete key ", p11.delete_key(key)
         p11.delete_key(key2_priv)
         p11.delete_key(key3)

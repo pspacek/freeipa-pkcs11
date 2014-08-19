@@ -304,6 +304,7 @@ IPA_PKCS11_finalize(IPA_PKCS11* self) {
 	return Py_None;
 }
 
+
 /********************************************************************
  * Methods working with keys
  */
@@ -728,20 +729,25 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
 
 	if (attr_dict != NULL){
 		while (PyDict_Next(attr_dict, &pos, &key, &value)){
-			if (!PyString_Check(key)){
-				PyErr_SetString(IPA_PKCS11Error, "String key is required for attribute name");
+			if (!PyInt_Check(key)){
+				PyErr_SetString(IPA_PKCS11Error, "Use a numeric CKA_* constant for the key");
 				return NULL;
 			}
-			if(strcmp(PyString_AsString(key), "cka_token") == 0){
+			switch(PyInt_AsUnsignedLongMask(key)){
+			case CKA_TOKEN:
 				cka_token = PyObject_IsTrue(value) ? &true : &false;
-			} else if(strcmp(PyString_AsString(key), "cka_wrap") == 0){
+				break;
+			case CKA_WRAP:
 				cka_wrap = PyObject_IsTrue(value) ? &true : &false;
-			} else if(strcmp(PyString_AsString(key), "cka_encrypt") == 0){
+				break;
+			case CKA_ENCRYPT:
 				cka_encrypt = PyObject_IsTrue(value) ? &true : &false;
-			} else {
-				PyErr_SetString(IPA_PKCS11Error, "Unknown attribute");
+				break;
+			default:
+				PyErr_SetString(IPA_PKCS11Error, "Unknown/unsupported attribute");
 				return NULL;
 			}
+			//TODO more attributes????
 		}
 	}
 
@@ -1034,20 +1040,25 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
 
 	if (attrs != NULL){
 		while (PyDict_Next(attrs, &pos, &key, &value)){
-			if (!PyString_Check(key)){
-				PyErr_SetString(IPA_PKCS11Error, "String key is required for attribute name");
+			if (!PyInt_Check(key)){
+				PyErr_SetString(IPA_PKCS11Error, "Use a numeric CKA_* constant for the key");
 				return NULL;
 			}
-			if(strcmp(PyString_AsString(key), "cka_token") == 0){
+			switch(PyInt_AsUnsignedLongMask(key)){
+			case CKA_TOKEN:
 				cka_token = PyObject_IsTrue(value) ? &true : &false;
-			} else if(strcmp(PyString_AsString(key), "cka_sensitive") == 0){
+				break;
+			case CKA_SENSITIVE:
 				cka_sensitive = PyObject_IsTrue(value) ? &true : &false;
-			} else if(strcmp(PyString_AsString(key), "cka_extractable") == 0){
+				break;
+			case CKA_EXTRACTABLE:
 				cka_extractable = PyObject_IsTrue(value) ? &true : &false;
-			} else {
+				break;
+			default:
 				PyErr_SetString(IPA_PKCS11Error, "Unknown attribute");
 				return NULL;
 			}
+			//TODO more attributes????
 		}
 	}
 
@@ -1125,6 +1136,70 @@ final:
 	return ret;
 }
 
+/*
+ * Set object attributes
+ */
+static PyObject *
+IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
+	PyObject *ret = NULL;
+	PyObject *value = NULL;
+    CK_ULONG object = 0;
+    unsigned long attr = 0;
+	CK_ATTRIBUTE attribute;
+	int attr_needs_free = 0;
+	CK_RV rv;
+
+    static char *kwlist[] = {"key_object", "attr", "value", NULL };
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kkO|", kwlist, &object,
+			&attr, &value)){
+		return NULL;
+	}
+
+	attribute.type = CKA_TOKEN;
+	switch(attr){
+	case CKA_TOKEN:
+		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
+		attribute.ulValueLen = sizeof(CK_BBOOL);
+		break;
+	case CKA_WRAP:
+		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
+		attribute.ulValueLen = sizeof(CK_BBOOL);
+		break;
+	case CKA_UNWRAP:
+		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
+		attribute.ulValueLen = sizeof(CK_BBOOL);
+		break;
+	case CKA_SENSITIVE:
+		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
+		attribute.ulValueLen = sizeof(CK_BBOOL);
+		break;
+	case CKA_EXTRACTABLE:
+		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
+		attribute.ulValueLen = sizeof(CK_BBOOL);
+		break;
+	case CKA_ENCRYPT:
+		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
+		attribute.ulValueLen = sizeof(CK_BBOOL);
+		break;
+	case CKA_LABEL:
+		if(!PyUnicode_Check(value)){
+			return NULL;
+		}
+		attribute.pValue = unicode_to_char_array(value, &attribute.ulValueLen);
+		attr_needs_free = 1;
+		break;
+	}
+
+	CK_ATTRIBUTE template[] = {attribute};
+
+	rv = self->p11->C_SetAttributeValue(self->session, object, template, 1);
+	if(attr_needs_free) free(attribute.pValue);
+    if(!check_return_value(rv, "set_attribute"))
+    	ret = NULL;
+
+	return Py_None;
+}
+
 static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "initialize",
 		(PyCFunction) IPA_PKCS11_initialize, METH_VARARGS,
@@ -1159,6 +1234,9 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "import_wrapped_private_key",
 		(PyCFunction) IPA_PKCS11_import_wrapped_private_key, METH_VARARGS|METH_KEYWORDS,
 		"Import wrapped private key" },
+		{ "set_attribute",
+		(PyCFunction) IPA_PKCS11_set_attribute, METH_VARARGS|METH_KEYWORDS,
+		"Set attribute" },
 		{ NULL } /* Sentinel */
 };
 
@@ -1276,4 +1354,33 @@ PyMODINIT_FUNC initipa_pkcs11(void) {
 	PyObject *IPA_PKCS11_MECH_RSA_PKCS_OAEP_obj = PyInt_FromLong(CKM_RSA_PKCS_OAEP);
 	PyObject_SetAttrString(m, "MECH_RSA_PKCS_OAEP", IPA_PKCS11_MECH_RSA_PKCS_OAEP_obj);
 	Py_XDECREF(IPA_PKCS11_MECH_RSA_PKCS_OAEP_obj);
+
+	/* Key attributes */
+	PyObject *IPA_PKCS11_ATTR_CKA_WRAP_obj = PyInt_FromLong(CKA_WRAP);
+	PyObject_SetAttrString(m, "CKA_WRAP", IPA_PKCS11_ATTR_CKA_WRAP_obj);
+	Py_XDECREF(IPA_PKCS11_ATTR_CKA_WRAP_obj);
+
+	PyObject *IPA_PKCS11_ATTR_CKA_UNWRAP_obj = PyInt_FromLong(CKA_UNWRAP);
+	PyObject_SetAttrString(m, "CKA_UNWRAP", IPA_PKCS11_ATTR_CKA_UNWRAP_obj);
+	Py_XDECREF(IPA_PKCS11_ATTR_CKA_UNWRAP_obj);
+
+	PyObject *IPA_PKCS11_ATTR_CKA_TOKEN_obj = PyInt_FromLong(CKA_TOKEN);
+	PyObject_SetAttrString(m, "CKA_TOKEN", IPA_PKCS11_ATTR_CKA_TOKEN_obj);
+	Py_XDECREF(IPA_PKCS11_ATTR_CKA_TOKEN_obj);
+
+	PyObject *IPA_PKCS11_ATTR_CKA_SENSITIVE_obj = PyInt_FromLong(CKA_SENSITIVE);
+	PyObject_SetAttrString(m, "CKA_SENSITIVE", IPA_PKCS11_ATTR_CKA_SENSITIVE_obj);
+	Py_XDECREF(IPA_PKCS11_ATTR_CKA_SENSITIVE_obj);
+
+	PyObject *IPA_PKCS11_ATTR_CKA_EXTRACTABLE_obj = PyInt_FromLong(CKA_EXTRACTABLE);
+	PyObject_SetAttrString(m, "CKA_EXTRACTABLE", IPA_PKCS11_ATTR_CKA_EXTRACTABLE_obj);
+	Py_XDECREF(IPA_PKCS11_ATTR_CKA_EXTRACTABLE_obj);
+
+	PyObject *IPA_PKCS11_ATTR_CKA_ENCRYPT_obj = PyInt_FromLong(CKA_ENCRYPT);
+	PyObject_SetAttrString(m, "CKA_ENCRYPT", IPA_PKCS11_ATTR_CKA_ENCRYPT_obj);
+	Py_XDECREF(IPA_PKCS11_ATTR_CKA_ENCRYPT_obj);
+
+	PyObject *IPA_PKCS11_ATTR_CKA_LABEL_obj = PyInt_FromLong(CKA_LABEL);
+	PyObject_SetAttrString(m, "CKA_LABEL", IPA_PKCS11_ATTR_CKA_LABEL_obj);
+	Py_XDECREF(IPA_PKCS11_ATTR_CKA_LABEL_obj);
 }
