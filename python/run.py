@@ -41,10 +41,11 @@ if __name__ == '__main__':
         f.write(wrapped)
         f.close()
         print "import wrapped priv key", p11.import_wrapped_private_key(
-            u'test_import_wrapped', '555', wrapped, key_priv, 
-            key_type = ipa_pkcs11.KEY_TYPE_RSA
+            u'test_import_wrapped', '555', wrapped, key_priv
+            #,key_type = ipa_pkcs11.KEY_TYPE_RSA
         )
-        p11.set_attribute(ipa_pkcs11.CKA_WRAP, True)
+        p11.set_attribute(key, ipa_pkcs11.CKA_WRAP, True)
+        print "get label", p11.get_attribute(key, ipa_pkcs11.CKA_LABEL)
         print "Delete key ", p11.delete_key(key)
         p11.delete_key(key2_priv)
         p11.delete_key(key3)

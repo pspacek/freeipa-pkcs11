@@ -1019,7 +1019,7 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
 	CK_BBOOL *cka_extractable = &true;
 	CK_MECHANISM wrappingMech;
 	CK_OBJECT_CLASS keyClass = CKO_SECRET_KEY;
-	CK_KEY_TYPE keyType = CKK_DES;
+	CK_KEY_TYPE keyType = CKK_RSA;
 
     static char *kwlist[] = {"label", "id", "data", "unwrapping_key",
     		"key_class", "key_type", "attrs" , NULL };
@@ -1122,7 +1122,7 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
     rv = self->p11->C_UnwrapKey(self->session, &wrappingMech, unwrappingKey_object, p8->digest->data,
     				p8->digest->length, template,
     				sizeof(template)/sizeof(CK_ATTRIBUTE), &unwrappedKey_object);
-    if(!check_return_value(rv, "key unwrapping")){
+    if(!check_return_value(rv, "import_wrapped_private_key: key unwrapping")){
     	ret = NULL;
     	goto final;
     }
@@ -1200,6 +1200,61 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	return Py_None;
 }
 
+/*
+ * Get object attributes
+ */
+static PyObject *
+IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
+	PyObject *ret = NULL;
+	void *value = NULL;
+    CK_ULONG object = 0;
+    unsigned long attr = 0;
+	CK_ATTRIBUTE attribute;
+	int attr_needs_free = 0;
+	CK_RV rv;
+
+    static char *kwlist[] = {"key_object", "attr", NULL };
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kk|", kwlist, &object,
+			&attr, &value)){
+		return NULL;
+	}
+
+	attribute.type = CKA_TOKEN;
+	attribute.pValue = NULL_PTR;
+	attribute.ulValueLen = 0;
+	CK_ATTRIBUTE template[] = {attribute};
+
+	rv = self->p11->C_GetAttributeValue(self->session, object, template, 1);
+    if(!check_return_value(rv, "get_attribute init"))
+    	ret = NULL;
+    	goto final;
+    value = malloc(template[0].ulValueLen);
+    template[0].pValue = value;
+
+	rv = self->p11->C_GetAttributeValue(self->session, object, template, 1);
+    if(!check_return_value(rv, "get_attribute"))
+    	ret = NULL;
+    	goto final;
+
+	switch(attr){
+	case CKA_TOKEN:
+	case CKA_WRAP:
+	case CKA_UNWRAP:
+	case CKA_SENSITIVE:
+	case CKA_EXTRACTABLE:
+	case CKA_ENCRYPT:
+		ret = PyBool_FromLong(*(CK_BBOOL*)value);
+		break;
+	case CKA_LABEL:
+		ret = PyString_FromStringAndSize(value, template[0].ulValueLen); //TODO should be unicode?
+		break;
+	}
+
+final:
+	if(value != NULL) free(value);
+	return ret;
+}
+
 static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "initialize",
 		(PyCFunction) IPA_PKCS11_initialize, METH_VARARGS,
@@ -1237,6 +1292,9 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "set_attribute",
 		(PyCFunction) IPA_PKCS11_set_attribute, METH_VARARGS|METH_KEYWORDS,
 		"Set attribute" },
+		{ "get_attribute",
+		(PyCFunction) IPA_PKCS11_get_attribute, METH_VARARGS|METH_KEYWORDS,
+		"Get attribute" },
 		{ NULL } /* Sentinel */
 };
 
