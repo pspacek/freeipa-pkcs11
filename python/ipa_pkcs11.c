@@ -1197,7 +1197,7 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     if(!check_return_value(rv, "set_attribute"))
     	ret = NULL;
 
-	return Py_None;
+	return ret;
 }
 
 /*
