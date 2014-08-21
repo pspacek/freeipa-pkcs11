@@ -64,6 +64,13 @@ char* unicode_to_char_array(PyObject *unicode, Py_ssize_t *l){
 }
 
 /**
+ * Convert utf-8 encoded char array to unicode object
+ */
+PyObject* char_array_to_unicode(const char* array, unsigned long l){
+	return PyUnicode_DecodeUTF8(array, l, "strict");
+}
+
+/**
  * Tests result value of pkc11 operations
  * Returns 1 if everything is ok
  * Returns 0 if an error occurs and set the error message
@@ -1141,7 +1148,7 @@ final:
  */
 static PyObject *
 IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
-	PyObject *ret = NULL;
+	PyObject *ret = Py_None;
 	PyObject *value = NULL;
     CK_ULONG object = 0;
     unsigned long attr = 0;
@@ -1154,8 +1161,8 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 			&attr, &value)){
 		return NULL;
 	}
-
-	attribute.type = CKA_TOKEN;
+	Py_XINCREF(value);
+	attribute.type = attr;
 	switch(attr){
 	case CKA_TOKEN:
 		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
@@ -1183,7 +1190,8 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	case CKA_LABEL:
 		if(!PyUnicode_Check(value)){
-			return NULL;
+			ret = NULL;
+			goto final;
 		}
 		attribute.pValue = unicode_to_char_array(value, &attribute.ulValueLen);
 		attr_needs_free = 1;
@@ -1193,10 +1201,12 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	CK_ATTRIBUTE template[] = {attribute};
 
 	rv = self->p11->C_SetAttributeValue(self->session, object, template, 1);
-	if(attr_needs_free) free(attribute.pValue);
     if(!check_return_value(rv, "set_attribute"))
     	ret = NULL;
-
+final:
+	/* if(attr_needs_free)
+		if (attribute.pValue != NULL) free(attribute.pValue); */ //This causes core dump, is value freed in softhsm?
+	Py_XDECREF(value);
 	return ret;
 }
 
@@ -1219,22 +1229,24 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		return NULL;
 	}
 
-	attribute.type = CKA_TOKEN;
+	attribute.type = attr;
 	attribute.pValue = NULL_PTR;
 	attribute.ulValueLen = 0;
 	CK_ATTRIBUTE template[] = {attribute};
 
 	rv = self->p11->C_GetAttributeValue(self->session, object, template, 1);
-    if(!check_return_value(rv, "get_attribute init"))
+    if(!check_return_value(rv, "get_attribute init")){
     	ret = NULL;
     	goto final;
+    }
     value = malloc(template[0].ulValueLen);
     template[0].pValue = value;
 
 	rv = self->p11->C_GetAttributeValue(self->session, object, template, 1);
-    if(!check_return_value(rv, "get_attribute"))
+    if(!check_return_value(rv, "get_attribute")){
     	ret = NULL;
     	goto final;
+    }
 
 	switch(attr){
 	case CKA_TOKEN:
@@ -1246,7 +1258,8 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		ret = PyBool_FromLong(*(CK_BBOOL*)value);
 		break;
 	case CKA_LABEL:
-		ret = PyString_FromStringAndSize(value, template[0].ulValueLen); //TODO should be unicode?
+		ret = char_array_to_unicode(value, template[0].ulValueLen);
+		if (ret==NULL) fprintf(stderr, "NULL PyString");
 		break;
 	}
 
