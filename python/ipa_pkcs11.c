@@ -35,7 +35,7 @@
 
 #include "library.h"
 
-// compat
+// compat TODO
 #define CKM_AES_KEY_WRAP           (0x1090)
 
 CK_BBOOL true = CK_TRUE;
@@ -229,7 +229,7 @@ IPA_PKCS11_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
 	if (self != NULL) {
 
 		self->slot = 0;
-		self->session = NULL;
+		self->session = 0;
 		self->p11 = NULL;
 	}
 
@@ -329,7 +329,7 @@ IPA_PKCS11_finalize(IPA_PKCS11* self) {
 	self->p11->C_Finalize(NULL);
 
 	self->p11 = NULL;
-	self->session = NULL;
+	self->session = 0;
 	self->slot = 0;
 
 	return Py_None;
@@ -348,25 +348,31 @@ static PyObject *
 IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
     CK_RV rv;
-    CK_OBJECT_HANDLE symKey;
+    CK_OBJECT_HANDLE master_key;
     CK_BYTE *id = NULL;
     int id_length = 0;
-    CK_ULONG keyLength = 16;
+    CK_ULONG key_length = 16;
     PyObject *labelUnicode = NULL;
     Py_ssize_t label_length = 0;
 	static char *kwlist[] = {"subject", "id", "key_length", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|k", kwlist,
-			&labelUnicode, &id, &id_length, &keyLength)){
+			&labelUnicode, &id, &id_length, &key_length)){
 		return NULL;
 	}
 
 	Py_XINCREF(labelUnicode);
-	CK_BYTE *label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
+	CK_BYTE *label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length);
 	Py_XDECREF(labelUnicode);
     CK_MECHANISM mechanism = { //TODO param?
          CKM_AES_KEY_GEN, NULL_PTR, 0
     };
+
+    if ((key_length != 16) && (key_length != 24) && (key_length != 32)){
+        PyErr_SetString(IPA_PKCS11Error, "generate_master_key: key length allowed values are: 16, 24 and 32");
+        return NULL;
+    }
+
     CK_ATTRIBUTE symKeyTemplate[] = {
          {CKA_ID, id, id_length},
          {CKA_LABEL, label, label_length},
@@ -378,7 +384,7 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
          {CKA_WRAP, &true, sizeof(true)}, //TODO param?
          {CKA_UNWRAP, &true, sizeof(true)}, //TODO param?
          {CKA_EXTRACTABLE, &true, sizeof(true)}, //TODO param?
-         {CKA_VALUE_LEN, &keyLength, sizeof(keyLength)}
+         {CKA_VALUE_LEN, &key_length, sizeof(key_length)}
     };
 
     //TODO if key exists raise an error????
@@ -387,7 +393,7 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
                            &mechanism,
                            symKeyTemplate,
 			    sizeof(symKeyTemplate)/sizeof(CK_ATTRIBUTE),
-                           &symKey);
+                           &master_key);
     if(!check_return_value(rv, "generate master key"))
     	return NULL;
 
