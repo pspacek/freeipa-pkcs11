@@ -65,8 +65,8 @@ static PyObject *IPA_PKCS11DuplicationError; //key already exists
 
 /**
  * Convert a unicode string to the utf8 encoded char array
- * @param unicode input python unicode object
- * @param l length of returned string
+ * :param unicode: input python unicode object
+ * :param l length: of returned string
  * Returns NULL if an error occurs, else pointer to string
  */
 char* unicode_to_char_array(PyObject *unicode, Py_ssize_t *l){
@@ -96,8 +96,7 @@ PyObject* char_array_to_unicode(const char* array, unsigned long l){
 
 /**
  * Tests result value of pkc11 operations
- * Returns 1 if everything is ok
- * Returns 0 if an error occurs and set the error message
+ * :return: 1 if everything is ok, 0 if an error occurs and set the error message
  */
 int check_return_value(CK_RV rv, const char *message) {
 	char* errmsg = NULL;
@@ -125,22 +124,22 @@ int check_return_value(CK_RV rv, const char *message) {
  * Function return only one key, if more keys meet the search parameters,
  * exception will be raised
  *
- * @param id key ID, (if value is NULL, will not be used to find key)
- * @param idLen key ID length
- * @param label key label (if value is NULL, will not be used to find key)
- * @param labelLen key label length
- * @param class key class
- * @param cka_wrap  (if value is NULL, will not be used to find key)
- * @param cka_unwrap (if value is NULL, will not be used to find key)
- * @param object
- * @return 1 if object was found, otherwise return 0 and set the exception
+ * :param id: key ID, (if value is NULL, will not be used to find key)
+ * :param id_len: key ID length
+ * :param label key: label (if value is NULL, will not be used to find key)
+ * :param label_len: key label length
+ * :param class key: class
+ * :param cka_wrap:  (if value is NULL, will not be used to find key)
+ * :param cka_unwrap: (if value is NULL, will not be used to find key)
+ * :param object:
+ * :return: 1 if object was found, otherwise return 0 and set the exception
  *
- * @raise IPA_PKCS11NotFound if no result is returned
- * @raise IPA_PKCS11DuplicationError if more then 1 key meet the parameters
+ * :raise IPA_PKCS11NotFound: if no result is returned
+ * :raise IPA_PKCS11DuplicationError: if more then 1 key meet the parameters
  */
 int
-_get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG idLen,
-		CK_BYTE_PTR label, CK_ULONG labelLen,
+_get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
+		CK_BYTE_PTR label, CK_ULONG label_len,
 		CK_OBJECT_CLASS class, CK_BBOOL *cka_wrap,
 		CK_BBOOL *cka_unwrap, CK_OBJECT_HANDLE *object)
 {
@@ -160,13 +159,13 @@ _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG idLen,
     if (label!=NULL){
     	template[attr_count].type = CKA_LABEL;
     	template[attr_count].pValue = (void *) label;
-    	template[attr_count].ulValueLen = labelLen;
+    	template[attr_count].ulValueLen = label_len;
     	++attr_count;
     }
     if (id!=NULL){
     	template[attr_count].type = CKA_ID;
     	template[attr_count].pValue = (void *) id;
-    	template[attr_count].ulValueLen = idLen;
+    	template[attr_count].ulValueLen = id_len;
     	++attr_count;
     }
     if (cka_wrap!=NULL){
@@ -200,6 +199,7 @@ _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG idLen,
     rv = self->p11->C_FindObjectsFinal(self->session);
     if(!check_return_value(rv, "Find objects final"))
     	return 0;
+
     //TODO duplication detection doesnt work
     if (objectCount == 0) {
     	PyErr_SetString(IPA_PKCS11NotFound, "Key not found");
@@ -253,17 +253,17 @@ static PyMemberDef IPA_PKCS11_members[] = { { NULL } /* Sentinel */
  */
 static PyObject *
 IPA_PKCS11_initialize(IPA_PKCS11* self, PyObject *args) {
-	const char* userPin = NULL;
-	const char* libraryPath = NULL;
+	const char* user_pin = NULL;
+	const char* library_path = NULL;
 	CK_RV rv;
-	void *moduleHandle = NULL;
+	void *module_handle = NULL;
 
 	/* Parse method args*/
-	if (!PyArg_ParseTuple(args, "iss", &self->slot, &userPin, &libraryPath))
+	if (!PyArg_ParseTuple(args, "iss", &self->slot, &user_pin, &library_path))
 		return NULL;
 
-	CK_C_GetFunctionList pGetFunctionList = loadLibrary(libraryPath,
-			&moduleHandle);
+	CK_C_GetFunctionList pGetFunctionList = loadLibrary(library_path,
+			&module_handle);
 	if (!pGetFunctionList) {
 		PyErr_SetString(IPA_PKCS11Error, "Could not load the library.");
 		return NULL;
@@ -292,8 +292,8 @@ IPA_PKCS11_initialize(IPA_PKCS11* self, PyObject *args) {
 	/*
 	 * Login
 	 */
-	rv = self->p11->C_Login(self->session, CKU_USER, (CK_BYTE*) userPin,
-			strlen((char *) userPin));
+	rv = self->p11->C_Login(self->session, CKU_USER, (CK_BYTE*) user_pin,
+			strlen((char *) user_pin));
 	if (!check_return_value(rv, "log in"))
 		return NULL;
 
@@ -352,18 +352,18 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_BYTE *id = NULL;
     int id_length = 0;
     CK_ULONG key_length = 16;
-    PyObject *labelUnicode = NULL;
+    PyObject *label_unicode = NULL;
     Py_ssize_t label_length = 0;
 	static char *kwlist[] = {"subject", "id", "key_length", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|k", kwlist,
-			&labelUnicode, &id, &id_length, &key_length)){
+			&label_unicode, &id, &id_length, &key_length)){
 		return NULL;
 	}
 
-	Py_XINCREF(labelUnicode);
-	CK_BYTE *label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length);
-	Py_XDECREF(labelUnicode);
+	Py_XINCREF(label_unicode);
+	CK_BYTE *label = (unsigned char*) unicode_to_char_array(label_unicode, &label_length);
+	Py_XDECREF(label_unicode);
     CK_MECHANISM mechanism = { //TODO param?
          CKM_AES_KEY_GEN, NULL_PTR, 0
     };
@@ -409,36 +409,36 @@ static PyObject *
 IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
     CK_RV rv;
-    CK_ULONG modulusBits = 2048;
+    CK_ULONG modulus_bits = 2048;
     CK_BYTE *id = NULL;
     int id_length = 0;
-    PyObject* labelUnicode = NULL;
+    PyObject* label_unicode = NULL;
     Py_ssize_t label_length = 0;
 	static char *kwlist[] = {"label", "id", "modulus_bits", NULL };
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|k", kwlist,
-			&labelUnicode, &id, &id_length, &modulusBits)){
+			&label_unicode, &id, &id_length, &modulus_bits)){
 		return NULL;
 	}
 
-	Py_XINCREF(labelUnicode);
-	CK_BYTE *label = unicode_to_char_array(labelUnicode, &label_length);
-	Py_XDECREF(labelUnicode);
+	Py_XINCREF(label_unicode);
+	CK_BYTE *label = unicode_to_char_array(label_unicode, &label_length);
+	Py_XDECREF(label_unicode);
 
-    CK_OBJECT_HANDLE publicKey, privateKey;
+    CK_OBJECT_HANDLE public_key, private_key;
     CK_MECHANISM mechanism = {
          CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0
     };
 
     //TODO raise an exception if key exists
 
-    CK_BYTE publicExponent[] = { 1, 0, 1 }; /* 65537 (RFC 6376 section 3.3.1)*/
+    CK_BYTE public_exponent[] = { 1, 0, 1 }; /* 65537 (RFC 6376 section 3.3.1)*/
     CK_ATTRIBUTE publicKeyTemplate[] = {
          {CKA_ID, id, id_length},
          {CKA_LABEL, label, label_length},
          {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
          {CKA_WRAP, &true, sizeof(true)}, //TODO param?
-         {CKA_MODULUS_BITS, &modulusBits, sizeof(modulusBits)}, //TODO param
-         {CKA_PUBLIC_EXPONENT, publicExponent, 3},
+         {CKA_MODULUS_BITS, &modulus_bits, sizeof(modulus_bits)}, //TODO param
+         {CKA_PUBLIC_EXPONENT, public_exponent, 3},
     };
     CK_ATTRIBUTE privateKeyTemplate[] = {
          {CKA_ID, id, id_length},
@@ -460,8 +460,8 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
 			    sizeof(publicKeyTemplate)/sizeof(CK_ATTRIBUTE),
                            privateKeyTemplate,
 			    sizeof(privateKeyTemplate)/sizeof(CK_ATTRIBUTE),
-                           &publicKey,
-                           &privateKey);
+                           &public_key,
+                           &private_key);
     if(!check_return_value(rv, "generate key pair"))
     	return NULL;
 
@@ -482,44 +482,44 @@ IPA_PKCS11_get_key_handler(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_BBOOL *ckawrap = NULL;
     CK_BBOOL *ckaunwrap = NULL;
     int id_length = 0;
-    CK_ULONG keyLength = 16;
-    PyObject *labelUnicode = NULL;
-    PyObject *ckaWrapBool = NULL;
-    PyObject *ckaUnwrapBool = NULL;
+    CK_ULONG key_length = 16;
+    PyObject *label_unicode = NULL;
+    PyObject *cka_wrap_bool = NULL;
+    PyObject *cka_unwrap_bool = NULL;
     Py_ssize_t label_length = 0;
 	static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#OO", kwlist,
-			 &class, &labelUnicode, &id, &id_length, &keyLength,
-			 &ckaWrapBool, &ckaUnwrapBool)){
+			 &class, &label_unicode, &id, &id_length, &key_length,
+			 &cka_wrap_bool, &cka_unwrap_bool)){
 		return NULL;
 	}
 
 	CK_BYTE *label = NULL;
-	if (labelUnicode != NULL){
-		Py_INCREF(labelUnicode);
-		label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
-		Py_DECREF(labelUnicode);
+	if (label_unicode != NULL){
+		Py_INCREF(label_unicode);
+		label = (unsigned char*) unicode_to_char_array(label_unicode, &label_length); //TODO verify signed/unsigned
+		Py_DECREF(label_unicode);
 	}
 
-	if(ckaWrapBool!=NULL){
-		Py_INCREF(ckaWrapBool);
-		if (PyObject_IsTrue(ckaWrapBool)){
+	if(cka_wrap_bool!=NULL){
+		Py_INCREF(cka_wrap_bool);
+		if (PyObject_IsTrue(cka_wrap_bool)){
 			ckawrap = &true;
 		} else {
 			ckawrap = &false;
 		}
-		Py_DECREF(ckaWrapBool);
+		Py_DECREF(cka_wrap_bool);
 	}
 
-	if(ckaUnwrapBool!=NULL){
-		Py_INCREF(ckaUnwrapBool);
-		if (PyObject_IsTrue(ckaWrapBool)){
+	if(cka_unwrap_bool!=NULL){
+		Py_INCREF(cka_unwrap_bool);
+		if (PyObject_IsTrue(cka_wrap_bool)){
 			ckawrap = &true;
 		} else {
 			ckawrap = &false;
 		}
-		Py_DECREF(ckaUnwrapBool);
+		Py_DECREF(cka_unwrap_bool);
 	}
 
 	CK_OBJECT_HANDLE object = 0;
@@ -555,6 +555,7 @@ IPA_PKCS11_delete_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 /**
  * export secret key
  */
+//TODO remove, we don't want to export secret key
 static PyObject *
 IPA_PKCS11_export_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
@@ -618,13 +619,13 @@ IPA_PKCS11_export_RSA_public_key(IPA_PKCS11* self, CK_OBJECT_HANDLE object)
     CK_BYTE_PTR modulus = NULL;
     CK_BYTE_PTR exponent = NULL;
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
-    CK_KEY_TYPE keyType = CKK_RSA;
+    CK_KEY_TYPE key_type = CKK_RSA;
 
     CK_ATTRIBUTE obj_template[] = {
          {CKA_MODULUS, NULL_PTR, 0},
          {CKA_PUBLIC_EXPONENT, NULL_PTR, 0},
          {CKA_CLASS, &class, sizeof(class)},
-         {CKA_KEY_TYPE, &keyType, sizeof(keyType)}
+         {CKA_KEY_TYPE, &key_type, sizeof(key_type)}
     };
 
     rv = self->p11->C_GetAttributeValue(self->session, object, obj_template, 4);
@@ -647,7 +648,7 @@ IPA_PKCS11_export_RSA_public_key(IPA_PKCS11* self, CK_OBJECT_HANDLE object)
     	return NULL;
     }
 
-    if (keyType != CKK_RSA){
+    if (key_type != CKK_RSA){
     	PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: required RSA key type");
     	return NULL;
     }
@@ -702,7 +703,7 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	CK_RV rv;
     CK_OBJECT_HANDLE object = 0;
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
-    CK_KEY_TYPE keyType = CKK_RSA;
+    CK_KEY_TYPE key_type = CKK_RSA;
 	static char *kwlist[] = {"key_handler", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|", kwlist,
@@ -712,7 +713,7 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 
     CK_ATTRIBUTE obj_template[] = {
          {CKA_CLASS, &class, sizeof(class)},
-         {CKA_KEY_TYPE, &keyType, sizeof(keyType)}
+         {CKA_KEY_TYPE, &key_type, sizeof(key_type)}
     };
 
     rv = self->p11->C_GetAttributeValue(self->session, object, obj_template, 2);
@@ -724,7 +725,7 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     	return NULL;
     }
 
-    switch (keyType){
+    switch (key_type){
     case CKK_RSA:
     	return IPA_PKCS11_export_RSA_public_key(self, object);
     	break;
@@ -907,20 +908,20 @@ IPA_PKCS11_export_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_OBJECT_HANDLE object_wrapping_key = 0;
 	CK_BYTE_PTR wrapped_key = NULL;
 	CK_ULONG wrapped_key_len = 0;
-	CK_MECHANISM wrappingMech = {CKM_RSA_PKCS, NULL, 0};
-	CK_MECHANISM_TYPE wrappingMechType= CKM_RSA_PKCS;
+	CK_MECHANISM wrapping_mech = {CKM_RSA_PKCS, NULL, 0};
+	CK_MECHANISM_TYPE wrapping_mech_type= CKM_RSA_PKCS;
 	/* currently we don't support parameter in mechanism */
 
 	static char *kwlist[] = {"key", "wrapping_key", "wrapping_mech", NULL };
 	//TODO check long overflow
 	//TODO export method
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kkk|", kwlist,
-			 &object_key, &object_wrapping_key, &wrappingMechType)){
+			 &object_key, &object_wrapping_key, &wrapping_mech_type)){
 		return NULL;
 	}
-	wrappingMech.mechanism = wrappingMechType;
+	wrapping_mech.mechanism = wrapping_mech_type;
 
-    rv = self->p11->C_WrapKey(self->session, &wrappingMech, object_wrapping_key,
+    rv = self->p11->C_WrapKey(self->session, &wrapping_mech, object_wrapping_key,
    		 object_key, NULL, &wrapped_key_len);
     if(!check_return_value(rv, "key wrapping: get buffer length"))
    	 return 0;
@@ -930,7 +931,7 @@ IPA_PKCS11_export_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	     check_return_value(rv, "key wrapping: buffer allocation");
 	     return 0;
     }
-    rv = self->p11->C_WrapKey(self->session, &wrappingMech, object_wrapping_key,
+    rv = self->p11->C_WrapKey(self->session, &wrapping_mech, object_wrapping_key,
         object_key, wrapped_key, &wrapped_key_len);
     if(!check_return_value(rv, "key wrapping: wrapping"))
         return NULL;
@@ -951,9 +952,9 @@ IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	CK_RV rv;
 	CK_BYTE_PTR wrapped_key = NULL;
 	CK_ULONG wrapped_key_len = 0;
-	CK_ULONG unwrappingKey_object = 0;
-	CK_OBJECT_HANDLE unwrappedKey_object = 0;
-	PyObject *labelUnicode = NULL;
+	CK_ULONG unwrapping_key_object = 0;
+	CK_OBJECT_HANDLE unwrapped_key_object = 0;
+	PyObject *label_unicode = NULL;
     CK_BYTE *id = NULL;
     CK_UTF8CHAR *label = NULL;
     Py_ssize_t id_length = 0;
@@ -965,21 +966,21 @@ IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	CK_BBOOL *cka_sensitive = &false;
 	PyObject *cka_extractable_py = NULL;
 	CK_BBOOL *cka_extractable = &true;
-	CK_MECHANISM wrappingMech = {CKM_RSA_PKCS, NULL, 0};
-	CK_MECHANISM_TYPE wrappingMechType= CKM_RSA_PKCS;
-	CK_OBJECT_CLASS keyClass = CKO_PRIVATE_KEY;
-	CK_KEY_TYPE keyType = CKK_RSA;
+	CK_MECHANISM wrapping_mech = {CKM_RSA_PKCS, NULL, 0};
+	CK_MECHANISM_TYPE wrapping_mech_type= CKM_RSA_PKCS;
+	CK_OBJECT_CLASS key_class = CKO_PRIVATE_KEY;
+	CK_KEY_TYPE key_type = CKK_RSA;
 
     static char *kwlist[] = {"label", "id", "data", "unwrapping_key", "wrapping_mech",
     		"key_class", "key_type", "token", "sensitive", "extractable", NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|OOO", kwlist, &labelUnicode, &id, &id_length,
-		&wrapped_key, &wrapped_key_len, &unwrappingKey_object, &wrappingMechType, &keyClass,
-		&keyType, &cka_token_py, &cka_sensitive_py, &cka_extractable_py)){
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|OOO", kwlist, &label_unicode, &id, &id_length,
+		&wrapped_key, &wrapped_key_len, &unwrapping_key_object, &wrapping_mech_type, &key_class,
+		&key_type, &cka_token_py, &cka_sensitive_py, &cka_extractable_py)){
 		return NULL;
 	}
-	Py_XINCREF(labelUnicode);
-	label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
-	Py_XDECREF(labelUnicode);
+	Py_XINCREF(label_unicode);
+	label = (unsigned char*) unicode_to_char_array(label_unicode, &label_length); //TODO verify signed/unsigned
+	Py_XDECREF(label_unicode);
 
 	if (cka_token_py != NULL)
 		cka_token = PyObject_IsTrue(cka_token_py) ? &true : &false;
@@ -995,8 +996,8 @@ IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 
 	//TODO more attributes? //CKA_WRAP, CKA_UNWRAP
     CK_ATTRIBUTE template[] = {
-         { CKA_CLASS, &keyClass, sizeof(keyClass) },
-         { CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+         { CKA_CLASS, &key_class, sizeof(key_class) },
+         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
          { CKA_ID, &id, sizeof(id) },
          { CKA_LABEL, &label, label_length },
          { CKA_TOKEN, cka_token, sizeof(CK_BBOOL) },
@@ -1004,14 +1005,14 @@ IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
          { CKA_EXTRACTABLE, cka_extractable, sizeof(CK_BBOOL) }
     };
 
-    rv = self->p11->C_UnwrapKey(self->session, &wrappingMech, unwrappingKey_object,
+    rv = self->p11->C_UnwrapKey(self->session, &wrapping_mech, unwrapping_key_object,
     				wrapped_key, wrapped_key_len, template,
-    				sizeof(template)/sizeof(CK_ATTRIBUTE), &unwrappedKey_object);
+    				sizeof(template)/sizeof(CK_ATTRIBUTE), &unwrapped_key_object);
     if(!check_return_value(rv, "import_wrapped_key: key unwrapping")){
     	return NULL;
     }
 
-    return PyLong_FromUnsignedLong(unwrappedKey_object);
+    return PyLong_FromUnsignedLong(unwrapped_key_object);
 
 }
 
