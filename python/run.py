@@ -56,8 +56,8 @@ if __name__ == '__main__':
         print "import wrapped master key (master wrapped with pubkey)", p11.import_wrapped_key(
                         u'test_import_wrapped', '555', wrapped, key2_priv,
                         ipa_pkcs11.MECH_RSA_PKCS,
+                        ipa_pkcs11.KEY_CLASS_SECRET_KEY,
                         ipa_pkcs11.KEY_TYPE_AES,
-                        ipa_pkcs11.KEY_CLASS_SECRET_KEY 
                     )
 
         p11.set_attribute(key, ipa_pkcs11.CKA_LABEL, u"newlabelž")
