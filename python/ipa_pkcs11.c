@@ -69,14 +69,14 @@ static PyObject *IPA_PKCS11DuplicationError; //key already exists
  * :param l length: of returned string
  * Returns NULL if an error occurs, else pointer to string
  */
-char* unicode_to_char_array(PyObject *unicode, Py_ssize_t *l){
+unsigned char* unicode_to_char_array(PyObject *unicode, Py_ssize_t *l){
 	PyObject* utf8_str = PyUnicode_AsUTF8String(unicode);
 	if (utf8_str == NULL){
 		PyErr_SetString(IPA_PKCS11Error, "Unable to encode UTF-8");
 		return NULL;
 	}
 	Py_XINCREF(utf8_str);
-	char* bytes = PyString_AS_STRING(utf8_str);
+	unsigned char* bytes = (unsigned char*) PyString_AS_STRING(utf8_str);
 	if (bytes == NULL){
 		PyErr_SetString(IPA_PKCS11Error, "Unable to get bytes from string");
 		*l = 0;
@@ -936,7 +936,6 @@ IPA_PKCS11_export_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     if(!check_return_value(rv, "key wrapping: wrapping"))
         return NULL;
 
-    // TODO free wrapped_key?
 
 	return Py_BuildValue("s#", wrapped_key, wrapped_key_len);
 
@@ -959,7 +958,6 @@ IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_UTF8CHAR *label = NULL;
     Py_ssize_t id_length = 0;
     Py_ssize_t label_length = 0;
-	Py_ssize_t pos = 0;
 	PyObject *cka_token_py = NULL;
 	CK_BBOOL *cka_token = &true;
 	PyObject *cka_sensitive_py = NULL;
@@ -1026,8 +1024,8 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     CK_ULONG object = 0;
     unsigned long attr = 0;
 	CK_ATTRIBUTE attribute;
-	int attr_needs_free = 0;
 	CK_RV rv;
+	Py_ssize_t len = 0;
 
     static char *kwlist[] = {"key_object", "attr", "value", NULL };
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kkO|", kwlist, &object,
@@ -1077,8 +1075,6 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     if(!check_return_value(rv, "set_attribute"))
     	ret = NULL;
 final:
-	/* if(attr_needs_free)
-		if (attribute.pValue != NULL) free(attribute.pValue); */ //This causes core dump, is value freed in softhsm?
 	Py_XDECREF(value);
 	return ret;
 }
@@ -1093,7 +1089,6 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     CK_ULONG object = 0;
     unsigned long attr = 0;
 	CK_ATTRIBUTE attribute;
-	int attr_needs_free = 0;
 	CK_RV rv;
 
     static char *kwlist[] = {"key_object", "attr", NULL };
