@@ -1064,9 +1064,18 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 			ret = NULL;
 			goto final;
 		}
-		attribute.pValue = unicode_to_char_array(value, &attribute.ulValueLen);
-		attr_needs_free = 1;
+		attribute.pValue = unicode_to_char_array(value, &len);
+		/* check for conversion error */
+		if (attribute.pValue == NULL){
+			ret = NULL;
+			goto final;
+		}
+		attribute.ulValueLen = len;
 		break;
+	default:
+		ret = NULL;
+		PyErr_SetString(IPA_PKCS11Error, "Unknown attribute");
+		goto final;
 	}
 
 	CK_ATTRIBUTE template[] = {attribute};
@@ -1127,8 +1136,11 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	case CKA_LABEL:
 		ret = char_array_to_unicode(value, template[0].ulValueLen);
-		if (ret==NULL) fprintf(stderr, "NULL PyString");
 		break;
+	default:
+		ret = NULL;
+		PyErr_SetString(IPA_PKCS11Error, "Unknown attribute");
+		goto final;
 	}
 
 final:
