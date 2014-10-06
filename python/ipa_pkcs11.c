@@ -149,9 +149,12 @@ _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
 	 */
 	unsigned int max_possible_attributes = 5;
 	CK_ATTRIBUTE template[max_possible_attributes];
+	CK_OBJECT_HANDLE result_object;
 	unsigned int attr_count = 0;
-
+	unsigned int not_found_err = 0;
+	unsigned int duplication_err = 0;
     CK_RV rv;
+
     if((label==NULL) && (id==NULL)){
     	PyErr_SetString(IPA_PKCS11Error, "Key 'id' or 'label' required.");
     	return 0;
@@ -192,24 +195,38 @@ _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
     if(!check_return_value(rv, "Find key init"))
     	return 0;
 
-    rv = self->p11->C_FindObjects(self->session, object, 1, &objectCount);
+
+    rv = self->p11->C_FindObjects(self->session, &result_object, 1, &objectCount);
     if(!check_return_value(rv, "Find key"))
     	return 0;
+
+    if (objectCount == 0){
+    	not_found_err = 1;
+    } else {
+		rv = self->p11->C_FindObjects(self->session, &result_object, 1, &objectCount);
+		if(!check_return_value(rv, "Check for duplicated key"))
+			return 0;
+
+		if(objectCount > 0){
+			duplication_err = 1;
+		}
+    }
 
     rv = self->p11->C_FindObjectsFinal(self->session);
     if(!check_return_value(rv, "Find objects final"))
     	return 0;
 
-    //TODO duplication detection doesnt work
-    if (objectCount == 0) {
+    if (not_found_err) {
     	PyErr_SetString(IPA_PKCS11NotFound, "Key not found");
     	return 0;
     }
-    else if (objectCount > 1) {
+
+    if (duplication_err) {
     	PyErr_SetString(IPA_PKCS11DuplicationError, "_get_key: more than 1 key found");
     	return 0;
     }
 
+    *object = result_object;
     return 1;
 }
 
