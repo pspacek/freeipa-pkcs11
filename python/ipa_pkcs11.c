@@ -1194,7 +1194,7 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 static PyTypeObject IPA_PKCS11Type = {
 	PyObject_HEAD_INIT(NULL)
 	0, /*ob_size*/
-	"ipa_pkcs1.IPA_PKCS11", /*tp_name*/
+	"ipapkcs11.IPA_PKCS11", /*tp_name*/
 	sizeof(IPA_PKCS11), /*tp_basicsize*/
 	0, /*tp_itemsize*/
 	(destructor)IPA_PKCS11_dealloc, /*tp_dealloc*/
@@ -1239,7 +1239,7 @@ static PyMethodDef module_methods[] = { { NULL } /* Sentinel */
 #ifndef PyMODINIT_FUNC	/* declarations for DLL import/export */
 #define PyMODINIT_FUNC void
 #endif
-PyMODINIT_FUNC initipa_pkcs11(void) {
+PyMODINIT_FUNC initipapkcs11(void) {
 	PyObject* m;
 
 	if (PyType_Ready(&IPA_PKCS11Type) < 0)
@@ -1248,7 +1248,7 @@ PyMODINIT_FUNC initipa_pkcs11(void) {
 	/*
 	 * Setting up ipa_pkcs11 module
 	 */
-	m = Py_InitModule3("ipa_pkcs11", module_methods,
+	m = Py_InitModule3("ipapkcs11", module_methods,
 			"Example module that creates an extension type.");
 
 	if (m == NULL)

@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import ipa_pkcs11
-from ipa_pkcs11 import IPA_PKCS11
+import ipapkcs11
+from ipapkcs11 import IPA_PKCS11
 
 def str_to_hex(s):
     return ''.join("{:02x}".format(ord(c)) for c in s)
@@ -14,16 +14,16 @@ if __name__ == '__main__':
         p11.generate_master_key(u"žžž-aest", "m", key_length=16)
         p11.generate_replica_key_pair(u"replica1", "id1")
         p11.generate_replica_key_pair(u"replica2", "id2")
-        key = p11.get_key_handler(ipa_pkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica1", cka_wrap=True)
-        key_priv = p11.get_key_handler(ipa_pkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica1", cka_wrap=True)
-        key2_priv = p11.get_key_handler(ipa_pkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica2", cka_wrap=True)
-        key2 = p11.get_key_handler(ipa_pkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica2", cka_wrap=True)
+        key = p11.get_key_handler(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica1", cka_wrap=True)
+        key_priv = p11.get_key_handler(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica1", cka_wrap=True)
+        key2_priv = p11.get_key_handler(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica2", cka_wrap=True)
+        key2 = p11.get_key_handler(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica2", cka_wrap=True)
         print 'key handler', key
         try:
-            print 'key handler', p11.get_key_handler(ipa_pkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica666")
-        except ipa_pkcs11.NotFound:
+            print 'key handler', p11.get_key_handler(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica666")
+        except ipapkcs11.NotFound:
             print "OK: NotFound"
-        key3 = p11.get_key_handler(ipa_pkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest", id="m")
+        key3 = p11.get_key_handler(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest", id="m")
         print "Got key ", key3
         key3_attrs = p11.export_secret_key(key3)
         print "Export secret key: ", str_to_hex(key3_attrs["value"])
@@ -33,35 +33,40 @@ if __name__ == '__main__':
         f.write(pub)
         f.close()
         print 'imported', p11.import_public_key(u'test_import', '1245', pub, 
-                                                {ipa_pkcs11.CKA_WRAP: False})
-        
-#        try:
-#            print "wrapping dnssec priv key by master key"
-#            wrapped_priv = p11.export_wrapped_key(key2_priv, key3, 
-#                                              ipa_pkcs11.MECH_AES_KEY_WRAP)
-#            print "wrapped_dnssec priv key:", str_to_hex(wrapped_priv)
-#            imported_priv = p11.import_wrapped_key(u'test_import_wrapped_priv',
-#                                                      '666',
-#                                                      wrapped_priv, key3,
-#                                                      ipa_pkcs11.MECH_AES_KEY_WRAP,
-#                                                      ipa_pkcs11.KEY_TYPE_RSA,
-#                                                      ipa_pkcs11.KEY_CLASS_PRIVATE_KEY)
-#        except Exception as e:
-#            print e
+                                                {ipapkcs11.CKA_WRAP: False})
+
+        try:
+            print "wrapping dnssec priv key by master key"
+            wrapped_priv = p11.export_wrapped_key(key2_priv, key3, 
+                                              ipapkcs11.MECH_AES_KEY_WRAP)
+            print "wrapped_dnssec priv key:", str_to_hex(wrapped_priv)
+            imported_priv = p11.import_wrapped_key(u'test_import_wrapped_priv',
+                                                      '666',
+                                                      wrapped_priv, key3,
+                                                      ipapkcs11.MECH_AES_KEY_WRAP,
+                                                      ipapkcs11.KEY_CLASS_PRIVATE_KEY,
+                                                      ipapkcs11.KEY_TYPE_RSA)
+
+        except Exception as e:
+            print e
 
         wrapped = p11.export_wrapped_key(key3, key2,
-                                         ipa_pkcs11.MECH_RSA_PKCS
+                                         ipapkcs11.MECH_RSA_PKCS
                                          )
         print "wrapped key (secret master wrapped by pub key):", str_to_hex(wrapped)
         print "import wrapped master key (master wrapped with pubkey)", p11.import_wrapped_key(
                         u'test_import_wrapped', '555', wrapped, key2_priv,
-                        ipa_pkcs11.MECH_RSA_PKCS,
-                        ipa_pkcs11.KEY_CLASS_SECRET_KEY,
-                        ipa_pkcs11.KEY_TYPE_AES,
+                        ipapkcs11.MECH_RSA_PKCS,
+                        ipapkcs11.KEY_CLASS_SECRET_KEY,
+                        ipapkcs11.KEY_TYPE_AES
                     )
 
-        p11.set_attribute(key, ipa_pkcs11.CKA_LABEL, u"newlabelž")
-        print "get label", p11.get_attribute(key, ipa_pkcs11.CKA_LABEL)
+        p11.set_attribute(key, ipapkcs11.CKA_LABEL, u"newlabelž")
+        print "get label", p11.get_attribute(key, ipapkcs11.CKA_LABEL)
+        try:
+            p11.generate_master_key(u"žžž-aest", "m", key_length=16)
+        except Exception as e:
+            print "OK: duplication:", e
         print "Delete key ", p11.delete_key(key)
         p11.delete_key(key2_priv)
         p11.delete_key(key3)
