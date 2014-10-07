@@ -10,7 +10,7 @@ def str_to_hex(s):
 if __name__ == '__main__':
     p11 = IPA_PKCS11()
     try:
-        p11.initialize(0, "1234", "/usr/lib64/softhsm/libsofthsm2.so")
+        p11.initialize(0, "1234", "/usr/lib64/pkcs11/libsofthsm2.so")
         p11.generate_master_key(u"žžž-aest", "m", key_length=16)
         p11.generate_replica_key_pair(u"replica1", "id1")
         p11.generate_replica_key_pair(u"replica2", "id2")
@@ -86,5 +86,7 @@ if __name__ == '__main__':
         print "Delete key ", p11.delete_key(key)
         p11.delete_key(key2_priv)
         p11.delete_key(key3)
+    except Exception as e:
+        print "GLOBAL FAILURE:", e
     finally:
         p11.finalize()

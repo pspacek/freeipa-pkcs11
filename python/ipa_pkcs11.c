@@ -369,6 +369,9 @@ static PyObject *
 IPA_PKCS11_finalize(IPA_PKCS11* self) {
 	CK_RV rv;
 
+	if (self->p11 == NULL)
+		return Py_None;
+
 	/*
 	 * Logout
 	 */
