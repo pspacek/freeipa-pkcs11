@@ -1236,14 +1236,13 @@ IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	PyObject *cka_extractable_py = NULL;
 	CK_BBOOL *cka_extractable = &true;
 	CK_MECHANISM wrapping_mech = {CKM_RSA_PKCS, NULL, 0};
-	CK_MECHANISM_TYPE wrapping_mech_type= CKM_RSA_PKCS;
 	CK_OBJECT_CLASS key_class = CKO_PRIVATE_KEY;
 	CK_KEY_TYPE key_type = CKK_RSA;
 
     static char *kwlist[] = {"label", "id", "data", "unwrapping_key", "wrapping_mech",
     		"key_class", "key_type", "token", "sensitive", "extractable", NULL };
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|OOO", kwlist, &label_unicode, &id, &id_length,
-		&wrapped_key, &wrapped_key_len, &unwrapping_key_object, &wrapping_mech_type, &key_class,
+		&wrapped_key, &wrapped_key_len, &unwrapping_key_object, &wrapping_mech.mechanism, &key_class,
 		&key_type, &cka_token_py, &cka_sensitive_py, &cka_extractable_py)){
 		return NULL;
 	}
