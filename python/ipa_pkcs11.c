@@ -1053,6 +1053,7 @@ static PyObject *
 IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
+	int r;
 	CK_BYTE_PTR wrapped_key = NULL;
 	CK_ULONG wrapped_key_len = 0;
 	CK_ULONG unwrapping_key_object = 0;
@@ -1093,6 +1094,14 @@ IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	if (cka_extractable_py != NULL)
 		cka_extractable = PyObject_IsTrue(cka_extractable_py) ? &true : &false;
 
+    r = _id_label_exists(self, id, id_length, label, label_length, key_class);
+    if (r == 1){
+    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    			"Master key with same ID and LABEL already exists");
+    	return NULL;
+    } else if (r == -1){
+    	return NULL;
+    }
 
 	//TODO attributes by key type and class
 
