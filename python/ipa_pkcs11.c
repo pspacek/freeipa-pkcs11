@@ -118,6 +118,124 @@ int check_return_value(CK_RV rv, const char *message) {
 }
 
 /*
+ * Find keys with specified attributes ('id' or 'label' and 'class' are required)
+ *
+ *
+ * Function return only one key, if more keys meet the search parameters,
+ * exception will be raised
+ *
+ * :param id: key ID, (if value is NULL, will not be used to find key)
+ * :param id_len: key ID length
+ * :param label key: label (if value is NULL, will not be used to find key)
+ * :param label_len: key label length
+ * :param class key: class
+ * :param cka_wrap:  (if value is NULL, will not be used to find key)
+ * :param cka_unwrap: (if value is NULL, will not be used to find key)
+ * :param objects: found objects, NULL if no objects fit criteria
+ * :param objects_count: number of objects in objects array
+ * :return: 1 if success, otherwise return 0 and set the exception
+ */
+int
+_find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
+		CK_BYTE_PTR label, CK_ULONG label_len,
+		CK_OBJECT_CLASS class, CK_BBOOL *cka_wrap,
+		CK_BBOOL *cka_unwrap, CK_OBJECT_HANDLE **objects,
+		unsigned int *objects_count)
+{
+	/* specify max number of possible attributes, increase this number whenever
+	 * new attribute is added and don't forget to increase attr_count with each
+	 * set attribute
+	 */
+	unsigned int max_possible_attributes = 5;
+	CK_ATTRIBUTE template[max_possible_attributes];
+	CK_OBJECT_HANDLE result_object;
+    CK_ULONG objectCount;
+	CK_OBJECT_HANDLE *result_objects = NULL;
+	CK_OBJECT_HANDLE *tmp_objects_ptr = NULL;
+	unsigned int attr_count = 0;
+	unsigned int count = 0;
+	unsigned int allocated = 0;
+    CK_RV rv;
+
+    if (label!=NULL){
+    	template[attr_count].type = CKA_LABEL;
+    	template[attr_count].pValue = (void *) label;
+    	template[attr_count].ulValueLen = label_len;
+    	++attr_count;
+    }
+    if (id!=NULL){
+    	template[attr_count].type = CKA_ID;
+    	template[attr_count].pValue = (void *) id;
+    	template[attr_count].ulValueLen = id_len;
+    	++attr_count;
+    }
+    if (cka_wrap!=NULL){
+    	template[attr_count].type = CKA_WRAP;
+    	template[attr_count].pValue = (void *) cka_wrap;
+    	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
+    	++attr_count;
+    }
+    if (cka_unwrap!=NULL){
+    	template[attr_count].type = CKA_UNWRAP;
+    	template[attr_count].pValue = (void *) cka_unwrap;
+    	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
+    	++attr_count;
+    }
+
+    /* Set CLASS */
+	template[attr_count].type = CKA_CLASS;
+	template[attr_count].pValue = (void *) &class;
+	template[attr_count].ulValueLen = sizeof(CK_OBJECT_CLASS);
+	++attr_count;
+
+
+    rv = self->p11->C_FindObjectsInit(self->session, template, attr_count);
+    if(!check_return_value(rv, "Find key init"))
+    	return 0;
+
+
+    rv = self->p11->C_FindObjects(self->session, &result_object, 1, &objectCount);
+    if(!check_return_value(rv, "Find key"))
+    	return 0;
+
+    while (objectCount > 0){
+    	if(allocated <= count){
+    		allocated += 32;
+        	tmp_objects_ptr = (CK_OBJECT_HANDLE*) realloc(result_objects,
+        			allocated * sizeof(CK_OBJECT_HANDLE));
+        	if (tmp_objects_ptr == NULL){
+        		*objects_count = 0;
+        		PyErr_SetString(IPA_PKCS11Error, "_find_key realloc failed");
+        		if (result_objects != NULL)
+        			free(result_objects);
+        		return 0;
+        	} else {
+        		result_objects = tmp_objects_ptr;
+        	}
+    	}
+    	result_objects[count] = result_object;
+    	count++;
+		rv = self->p11->C_FindObjects(self->session, &result_object, 1, &objectCount);
+		if(!check_return_value(rv, "Check for duplicated key")){
+    		if (result_objects != NULL)
+    			free(result_objects);
+			return 0;
+		}
+    }
+
+    rv = self->p11->C_FindObjectsFinal(self->session);
+    if(!check_return_value(rv, "Find objects final")){
+		if (result_objects != NULL)
+			free(result_objects);
+		return 0;
+    }
+
+    *objects = result_objects;
+    *objects_count = count;
+    return 1;
+}
+
+/*
  * Find key with specified attributes ('id' or 'label' and 'class' are required)
  *
  * id or label and class must be specified
@@ -150,72 +268,30 @@ _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
 	 */
 	unsigned int max_possible_attributes = 5;
 	CK_ATTRIBUTE template[max_possible_attributes];
-	CK_OBJECT_HANDLE result_object;
+	CK_OBJECT_HANDLE* result_objects = NULL;
+	unsigned int objects_count = 0;
 	unsigned int attr_count = 0;
 	unsigned int not_found_err = 0;
 	unsigned int duplication_err = 0;
+	int r;
     CK_RV rv;
 
     if((label==NULL) && (id==NULL)){
     	PyErr_SetString(IPA_PKCS11Error, "Key 'id' or 'label' required.");
     	return 0;
     }
-    if (label!=NULL){
-    	template[attr_count].type = CKA_LABEL;
-    	template[attr_count].pValue = (void *) label;
-    	template[attr_count].ulValueLen = label_len;
-    	++attr_count;
-    }
-    if (id!=NULL){
-    	template[attr_count].type = CKA_ID;
-    	template[attr_count].pValue = (void *) id;
-    	template[attr_count].ulValueLen = id_len;
-    	++attr_count;
-    }
-    if (cka_wrap!=NULL){
-    	template[attr_count].type = CKA_WRAP;
-    	template[attr_count].pValue = (void *) cka_wrap;
-    	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
-    	++attr_count;
-    }
-    if (cka_unwrap!=NULL){
-    	template[attr_count].type = CKA_UNWRAP;
-    	template[attr_count].pValue = (void *) cka_unwrap;
-    	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
-    	++attr_count;
-    }
 
-    /* Set CLASS */
-	template[attr_count].type = CKA_CLASS;
-	template[attr_count].pValue = (void *) &class;
-	template[attr_count].ulValueLen = sizeof(CK_OBJECT_CLASS);
-	++attr_count;
+    r = _find_key(self, id, id_len, label, label_len, class, cka_wrap,
+    		cka_unwrap, &result_objects, &objects_count);
 
-    CK_ULONG objectCount;
-    rv = self->p11->C_FindObjectsInit(self->session, template, attr_count);
-    if(!check_return_value(rv, "Find key init"))
-    	return 0;
+    not_found_err = (objects_count == 0) ? 1 : 0;
+    duplication_err = (objects_count > 1) ? 1 : 0;
 
+    if(!(not_found_err || duplication_err))
+    	*object = result_objects[0];
 
-    rv = self->p11->C_FindObjects(self->session, &result_object, 1, &objectCount);
-    if(!check_return_value(rv, "Find key"))
-    	return 0;
-
-    if (objectCount == 0){
-    	not_found_err = 1;
-    } else {
-		rv = self->p11->C_FindObjects(self->session, &result_object, 1, &objectCount);
-		if(!check_return_value(rv, "Check for duplicated key"))
-			return 0;
-
-		if(objectCount > 0){
-			duplication_err = 1;
-		}
-    }
-
-    rv = self->p11->C_FindObjectsFinal(self->session);
-    if(!check_return_value(rv, "Find objects final"))
-    	return 0;
+    if(result_objects != NULL)
+    	free(result_objects);
 
     if (not_found_err) {
     	PyErr_SetString(IPA_PKCS11NotFound, "Key not found");
@@ -227,7 +303,6 @@ _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
     	return 0;
     }
 
-    *object = result_object;
     return 1;
 }
 
@@ -565,7 +640,7 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
 }
 
 /**
- * Find key
+ * Get key
  *
  * Default class: public_key
  *
@@ -625,6 +700,94 @@ IPA_PKCS11_get_key_handler(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 
 	return Py_BuildValue("k",object);
 }
+
+
+/**
+ * Find key
+ *
+ * Default class: public_key
+ *
+ */
+static PyObject *
+IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
+    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
+    CK_BYTE *id = NULL; //TODO free
+    CK_BBOOL *ckawrap = NULL;
+    CK_BBOOL *ckaunwrap = NULL;
+    int id_length = 0;
+    CK_ULONG key_length = 16;
+    PyObject *label_unicode = NULL;
+    PyObject *cka_wrap_bool = NULL;
+    PyObject *cka_unwrap_bool = NULL;
+    Py_ssize_t label_length = 0;
+    CK_OBJECT_HANDLE *objects = NULL;
+    int objects_len = 0;
+    PyObject *result_list = NULL;
+	CK_BYTE *label = NULL; //TODO free
+
+	static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
+	//TODO check long overflow
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#OO", kwlist,
+			 &class, &label_unicode, &id, &id_length, &key_length,
+			 &cka_wrap_bool, &cka_unwrap_bool)){
+		return NULL;
+	}
+
+	if (label_unicode != NULL){
+		Py_INCREF(label_unicode);
+		label = (unsigned char*) unicode_to_char_array(label_unicode, &label_length); //TODO verify signed/unsigned
+		Py_DECREF(label_unicode);
+	}
+
+	if(cka_wrap_bool!=NULL){
+		Py_INCREF(cka_wrap_bool);
+		if (PyObject_IsTrue(cka_wrap_bool)){
+			ckawrap = &true;
+		} else {
+			ckawrap = &false;
+		}
+		Py_DECREF(cka_wrap_bool);
+	}
+
+	if(cka_unwrap_bool!=NULL){
+		Py_INCREF(cka_unwrap_bool);
+		if (PyObject_IsTrue(cka_wrap_bool)){
+			ckawrap = &true;
+		} else {
+			ckawrap = &false;
+		}
+		Py_DECREF(cka_unwrap_bool);
+	}
+
+	if(! _find_key(self, id, id_length, label, label_length, class, ckawrap,
+			ckaunwrap, &objects, &objects_len))
+		return NULL;
+
+	result_list = PyList_New(objects_len);
+	if(result_list == NULL){
+    	PyErr_SetString(IPA_PKCS11Error,
+    			"Unable to create list with results");
+    	if(objects != NULL){
+    		free(objects);
+    	}
+    	return NULL;
+	}
+	Py_INCREF(result_list);
+	for(int i=0; i<objects_len; ++i){
+		if(PyList_SetItem(result_list, i, Py_BuildValue("k",objects[i])) == -1){
+	    	PyErr_SetString(IPA_PKCS11Error,
+	    			"Unable to add to value to result list");
+	    	if(objects != NULL){
+	    		free(objects);
+	    	}
+	    	return NULL;
+		}
+	}
+
+	return result_list;
+}
+
 
 /**
  * delete key
@@ -1277,7 +1440,10 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		"Generate replica key pair" },
 		{ "get_key_handler",
 		(PyCFunction) IPA_PKCS11_get_key_handler, METH_VARARGS|METH_KEYWORDS,
-		"Find key" },
+		"Get key" },
+		{ "find_keys",
+		(PyCFunction) IPA_PKCS11_find_keys, METH_VARARGS|METH_KEYWORDS,
+		"Find keys" },
 		{ "delete_key",
 		(PyCFunction) IPA_PKCS11_delete_key, METH_VARARGS|METH_KEYWORDS,
 		"Delete key" },

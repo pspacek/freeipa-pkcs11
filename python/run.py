@@ -82,10 +82,18 @@ if __name__ == '__main__':
             print "FAIL", e
         else:
             print "FAIL: exception expected"
+            
+        try:
+            objects = p11.find_keys(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest")
+            print "find: objects=", repr(objects)
+        except Exception as e:
+            print "FAIL:", e
 
         print "Delete key ", p11.delete_key(key)
         p11.delete_key(key2_priv)
         p11.delete_key(key3)
+    except ipapkcs11.Exception as e:
+        print "PKCS11 FAILURE:", e
     except Exception as e:
         print "GLOBAL FAILURE:", e
     finally:
