@@ -65,6 +65,7 @@ if __name__ == '__main__':
         print "get label", p11.get_attribute(key, ipapkcs11.CKA_LABEL)
         try:
             p11.generate_master_key(u"žžž-aest", "m", key_length=16)
+            p11.generate_master_key(u"žžž-aest", "m", key_length=16)
         except ipapkcs11.DuplicationError as e:
             print "OK: duplication:", e
         except Exception as e:
@@ -73,6 +74,7 @@ if __name__ == '__main__':
             print "FAIL: expected error"
         
         try:
+            p11.generate_master_key(u"žžž-aest", "m-test", key_length=16)
             p11.get_key_handler(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest")
         except ipapkcs11.DuplicationError as e:
             print "OK: exception ", e

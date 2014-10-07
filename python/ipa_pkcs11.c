@@ -187,7 +187,7 @@ _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
     /* Set CLASS */
 	template[attr_count].type = CKA_CLASS;
 	template[attr_count].pValue = (void *) &class;
-	template[attr_count].ulValueLen = sizeof(class);
+	template[attr_count].ulValueLen = sizeof(CK_OBJECT_CLASS);
 	++attr_count;
 
     CK_ULONG objectCount;
@@ -228,6 +228,51 @@ _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
 
     *object = result_object;
     return 1;
+}
+
+/*
+ * Test if object with specified label, id and class exists
+ *
+ * :param id: key ID, (if value is NULL, will not be used to find key)
+ * :param id_len: key ID length
+ * :param label key: label (if value is NULL, will not be used to find key)
+ * :param label_len: key label length
+ * :param class key: class
+
+ * :return: 1 if object was found, 0 if object doesnt exists, -1 if error
+ * and set the exception
+ *
+ */
+int
+_id_label_exists(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
+		CK_BYTE_PTR label, CK_ULONG label_len,
+		CK_OBJECT_CLASS class) {
+
+    CK_RV rv;
+    CK_ULONG object_count = 0;
+    CK_OBJECT_HANDLE result_object = 0;
+    CK_ATTRIBUTE template[] = {
+         {CKA_ID, id, id_len},
+         {CKA_LABEL, label, label_len},
+         {CKA_CLASS, &class, sizeof(CK_OBJECT_CLASS)},
+    };
+
+    rv = self->p11->C_FindObjectsInit(self->session, template, 3);
+    if(!check_return_value(rv, "id, label exists init"))
+    	return -1;
+
+    rv = self->p11->C_FindObjects(self->session, &result_object, 1, &object_count);
+    if(!check_return_value(rv, "id, label exists"))
+    	return -1;
+
+    rv = self->p11->C_FindObjectsFinal(self->session);
+    if(!check_return_value(rv, "id, label exists final"))
+    	return -1;
+
+    if (object_count == 0){
+    	return 0;
+    }
+    return 1; /* Object found*/
 }
 
 /***********************************************************************
@@ -371,6 +416,7 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_ULONG key_length = 16;
     PyObject *label_unicode = NULL;
     Py_ssize_t label_length = 0;
+    int r;
 	static char *kwlist[] = {"subject", "id", "key_length", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|k", kwlist,
@@ -390,6 +436,17 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
+    //TODO free label if check failed
+    //TODO is label freed inside???? dont we use freed value later
+    r = _id_label_exists(self, id, id_length, label, label_length, CKO_SECRET_KEY);
+    if (r == 1){
+    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    			"Master key with same ID and LABEL already exists");
+    	return NULL;
+    } else if (r == -1){
+    	return NULL;
+    }
+
     CK_ATTRIBUTE symKeyTemplate[] = {
          {CKA_ID, id, id_length},
          {CKA_LABEL, label, label_length},
@@ -403,8 +460,6 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
          {CKA_EXTRACTABLE, &true, sizeof(true)}, //TODO param?
          {CKA_VALUE_LEN, &key_length, sizeof(key_length)}
     };
-
-    //TODO if key exists raise an error????
 
     rv = self->p11->C_GenerateKey(self->session,
                            &mechanism,
@@ -426,12 +481,14 @@ static PyObject *
 IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
     CK_RV rv;
+    int r;
     CK_ULONG modulus_bits = 2048;
     CK_BYTE *id = NULL;
     int id_length = 0;
     PyObject* label_unicode = NULL;
     Py_ssize_t label_length = 0;
 	static char *kwlist[] = {"label", "id", "modulus_bits", NULL };
+
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|k", kwlist,
 			&label_unicode, &id, &id_length, &modulus_bits)){
 		return NULL;
@@ -446,7 +503,25 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
          CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0
     };
 
-    //TODO raise an exception if key exists
+    //TODO free variables
+
+    r = _id_label_exists(self, id, id_length, label, label_length, CKO_PRIVATE_KEY);
+    if (r == 1){
+    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    			"Private key with same ID and LABEL already exists");
+    	return NULL;
+    } else if (r == -1){
+    	return NULL;
+    }
+
+    r = _id_label_exists(self, id, id_length, label, label_length, CKO_PUBLIC_KEY);
+    if (r == 1){
+    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    			"Public key with same ID and LABEL already exists");
+    	return NULL;
+    } else if (r == -1){
+    	return NULL;
+    }
 
     CK_BYTE public_exponent[] = { 1, 0, 1 }; /* 65537 (RFC 6376 section 3.3.1)*/
     CK_ATTRIBUTE publicKeyTemplate[] = {
@@ -859,6 +934,7 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
  */
 static PyObject *
 IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
+	int r;
 	PyObject *ret = NULL;
 	PyObject *labelUnicode = NULL;
 	PyObject *attrs = NULL;
@@ -885,7 +961,15 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		return NULL;
 	}
 
-	//TODO disallow if exist
+    r = _id_label_exists(self, id, id_length, label, label_length, CKO_PUBLIC_KEY);
+    if (r == 1){
+    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    			"Public key with same ID and LABEL already exists");
+    	return NULL;
+    } else if (r == -1){
+    	return NULL;
+    }
+
 	/* decode from ASN1 DER */
     pkey = d2i_PUBKEY(NULL, (const unsigned char **) &data, data_length);
     if(pkey == NULL){
