@@ -55,6 +55,8 @@ typedef struct {
 /**
  * IPA_PKCS11 Exceptions
  */
+static PyObject *IPA_PKCS11Exception; //parent class for all exceptions
+
 static PyObject *IPA_PKCS11Error;  //general error
 static PyObject *IPA_PKCS11NotFound;  //key not found
 static PyObject *IPA_PKCS11DuplicationError; //key already exists
@@ -1543,15 +1545,19 @@ PyMODINIT_FUNC initipapkcs11(void) {
 	/*
 	 * Setting up IPA_PKCS11 Exceptions
 	 */
-	IPA_PKCS11Error = PyErr_NewException("IPA_PKCS11.error", NULL, NULL);
-	Py_INCREF(IPA_PKCS11Error);
-	PyModule_AddObject(m, "error", IPA_PKCS11Error);
+	IPA_PKCS11Exception = PyErr_NewException("IPA_PKCS11.Exception", NULL, NULL);
+	Py_INCREF(IPA_PKCS11Exception);
+	PyModule_AddObject(m, "Exception", IPA_PKCS11Exception);
 
-	IPA_PKCS11NotFound = PyErr_NewException("IPA_PKCS11.NotFound", NULL, NULL);
+	IPA_PKCS11Error = PyErr_NewException("IPA_PKCS11.Error", IPA_PKCS11Exception, NULL);
+	Py_INCREF(IPA_PKCS11Error);
+	PyModule_AddObject(m, "Error", IPA_PKCS11Error);
+
+	IPA_PKCS11NotFound = PyErr_NewException("IPA_PKCS11.NotFound", IPA_PKCS11Exception, NULL);
 	Py_INCREF(IPA_PKCS11NotFound);
 	PyModule_AddObject(m, "NotFound", IPA_PKCS11NotFound);
 
-	IPA_PKCS11DuplicationError = PyErr_NewException("IPA_PKCS11.DuplicationError", NULL, NULL);
+	IPA_PKCS11DuplicationError = PyErr_NewException("IPA_PKCS11.DuplicationError", IPA_PKCS11Exception, NULL);
 	Py_INCREF(IPA_PKCS11DuplicationError);
 	PyModule_AddObject(m, "DuplicationError", IPA_PKCS11DuplicationError);
 
