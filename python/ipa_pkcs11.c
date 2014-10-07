@@ -37,6 +37,7 @@
 
 // compat TODO
 #define CKM_AES_KEY_WRAP           (0x1090)
+#define CKM_AES_KEY_WRAP_PAD       (0x1091)
 
 CK_BBOOL true = CK_TRUE;
 CK_BBOOL false = CK_FALSE;
@@ -1426,6 +1427,10 @@ PyMODINIT_FUNC initipapkcs11(void) {
 	PyObject *IPA_PKCS11_MECH_AES_KEY_WRAP_obj = PyInt_FromLong(CKM_AES_KEY_WRAP);
 	PyObject_SetAttrString(m, "MECH_AES_KEY_WRAP", IPA_PKCS11_MECH_AES_KEY_WRAP_obj);
 	Py_XDECREF(IPA_PKCS11_MECH_AES_KEY_WRAP_obj);
+
+	PyObject *IPA_PKCS11_MECH_AES_KEY_WRAP_PAD_obj = PyInt_FromLong(CKM_AES_KEY_WRAP_PAD);
+	PyObject_SetAttrString(m, "MECH_AES_KEY_WRAP_PAD", IPA_PKCS11_MECH_AES_KEY_WRAP_PAD_obj);
+	Py_XDECREF(IPA_PKCS11_MECH_AES_KEY_WRAP_PAD_obj);
 
 	/* Key attributes */
 	PyObject *IPA_PKCS11_ATTR_CKA_WRAP_obj = PyInt_FromLong(CKA_WRAP);

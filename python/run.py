@@ -38,12 +38,12 @@ if __name__ == '__main__':
         try:
             print "wrapping dnssec priv key by master key"
             wrapped_priv = p11.export_wrapped_key(key2_priv, key3, 
-                                              ipapkcs11.MECH_AES_KEY_WRAP)
+                                              ipapkcs11.MECH_AES_KEY_WRAP_PAD)
             print "wrapped_dnssec priv key:", str_to_hex(wrapped_priv)
             imported_priv = p11.import_wrapped_key(u'test_import_wrapped_priv',
                                                       '666',
                                                       wrapped_priv, key3,
-                                                      ipapkcs11.MECH_AES_KEY_WRAP,
+                                                      ipapkcs11.MECH_AES_KEY_WRAP_PAD,
                                                       ipapkcs11.KEY_CLASS_PRIVATE_KEY,
                                                       ipapkcs11.KEY_TYPE_RSA)
 
