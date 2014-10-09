@@ -1316,27 +1316,27 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	Py_XINCREF(value);
 	attribute.type = attr;
 	switch(attr){
-	case CKA_TOKEN:
-		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
-		attribute.ulValueLen = sizeof(CK_BBOOL);
-		break;
-	case CKA_WRAP:
-		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
-		attribute.ulValueLen = sizeof(CK_BBOOL);
-		break;
-	case CKA_UNWRAP:
-		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
-		attribute.ulValueLen = sizeof(CK_BBOOL);
-		break;
-	case CKA_SENSITIVE:
-		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
-		attribute.ulValueLen = sizeof(CK_BBOOL);
-		break;
-	case CKA_EXTRACTABLE:
-		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
-		attribute.ulValueLen = sizeof(CK_BBOOL);
-		break;
+	case CKA_ALWAYS_AUTHENTICATE:
+	case CKA_ALWAYS_SENSITIVE:
+	case CKA_COPYABLE:
 	case CKA_ENCRYPT:
+	case CKA_EXTRACTABLE:
+	case CKA_DECRYPT:
+	case CKA_DERIVE:
+	case CKA_LOCAL:
+	case CKA_MODIFIABLE:
+	case CKA_NEVER_EXTRACTABLE:
+	case CKA_PRIVATE:
+	case CKA_SENSITIVE:
+	case CKA_SIGN:
+	case CKA_SIGN_RECOVER:
+	case CKA_TOKEN:
+	case CKA_TRUSTED:
+	case CKA_UNWRAP:
+	case CKA_VERIFY:
+	case CKA_VERIFY_RECOVER:
+	case CKA_WRAP:
+	case CKA_WRAP_WITH_TRUSTED:
 		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
 		attribute.ulValueLen = sizeof(CK_BBOOL);
 		break;
@@ -1407,12 +1407,27 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     }
 
 	switch(attr){
-	case CKA_TOKEN:
-	case CKA_WRAP:
-	case CKA_UNWRAP:
-	case CKA_SENSITIVE:
-	case CKA_EXTRACTABLE:
+	case CKA_ALWAYS_AUTHENTICATE:
+	case CKA_ALWAYS_SENSITIVE:
+	case CKA_COPYABLE:
 	case CKA_ENCRYPT:
+	case CKA_EXTRACTABLE:
+	case CKA_DECRYPT:
+	case CKA_DERIVE:
+	case CKA_LOCAL:
+	case CKA_MODIFIABLE:
+	case CKA_NEVER_EXTRACTABLE:
+	case CKA_PRIVATE:
+	case CKA_SENSITIVE:
+	case CKA_SIGN:
+	case CKA_SIGN_RECOVER:
+	case CKA_TOKEN:
+	case CKA_TRUSTED:
+	case CKA_UNWRAP:
+	case CKA_VERIFY:
+	case CKA_VERIFY_RECOVER:
+	case CKA_WRAP:
+	case CKA_WRAP_WITH_TRUSTED:
 		ret = PyBool_FromLong(*(CK_BBOOL*)value);
 		break;
 	case CKA_LABEL:
