@@ -758,9 +758,9 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	if(cka_unwrap_bool!=NULL){
 		Py_INCREF(cka_unwrap_bool);
 		if (PyObject_IsTrue(cka_wrap_bool)){
-			ckawrap = &true;
+			ckaunwrap = &true;
 		} else {
-			ckawrap = &false;
+			ckaunwrap = &false;
 		}
 		Py_DECREF(cka_unwrap_bool);
 	}
