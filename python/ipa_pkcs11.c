@@ -74,6 +74,12 @@ static PyObject *IPA_PKCS11DuplicationError; //key already exists
  * Support functions
  */
 
+CK_BBOOL* pyobj_to_bool(PyObject* pyobj){
+	if (pyobj != NULL && PyObject_IsTrue(pyobj))
+		return &true;
+	return &false;
+}
+
 /**
  * Convert a unicode string to the utf8 encoded char array
  * :param unicode: input python unicode object
@@ -596,11 +602,7 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     for(int i=0; i < sizeof(boolean_values_mapping)/sizeof(PyObj2Bool_mapping_t); ++i){
     	if(boolean_values_mapping[i].py_obj != NULL){
     		Py_INCREF(boolean_values_mapping[i].py_obj);
-    		if (PyObject_IsTrue(boolean_values_mapping[i].py_obj)){
-    			boolean_values_mapping[i].bool = &true;
-    		} else {
-    			boolean_values_mapping[i].bool = &false;
-    		}
+    		boolean_values_mapping[i].bool = pyobj_to_bool(boolean_values_mapping[i].py_obj);
     		Py_DECREF(boolean_values_mapping[i].py_obj);
     	}
     }
