@@ -40,11 +40,10 @@ if __name__ == '__main__':
             wrapped_priv = p11.export_wrapped_key(key2_priv, key3, 
                                               ipapkcs11.MECH_AES_KEY_WRAP_PAD)
             print "wrapped_dnssec priv key:", str_to_hex(wrapped_priv)
-            imported_priv = p11.import_wrapped_key(u'test_import_wrapped_priv',
+            imported_priv = p11.import_wrapped_private_key(u'test_import_wrapped_priv',
                                                       '666',
                                                       wrapped_priv, key3,
                                                       ipapkcs11.MECH_AES_KEY_WRAP_PAD,
-                                                      ipapkcs11.KEY_CLASS_PRIVATE_KEY,
                                                       ipapkcs11.KEY_TYPE_RSA)
 
         except Exception as e:
@@ -54,10 +53,9 @@ if __name__ == '__main__':
                                          ipapkcs11.MECH_RSA_PKCS
                                          )
         print "wrapped key (secret master wrapped by pub key):", str_to_hex(wrapped)
-        print "import wrapped master key (master wrapped with pubkey)", p11.import_wrapped_key(
+        print "import wrapped master key (master wrapped with pubkey)", p11.import_wrapped_secret_key(
                         u'test_import_wrapped', '555', wrapped, key2_priv,
                         ipapkcs11.MECH_RSA_PKCS,
-                        ipapkcs11.KEY_CLASS_SECRET_KEY,
                         ipapkcs11.KEY_TYPE_AES
                     )
 

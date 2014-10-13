@@ -1297,11 +1297,11 @@ IPA_PKCS11_export_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 }
 
 /**
- * Import wrapped key
+ * Import wrapped secret key
  *
  */
 static PyObject *
-IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+IPA_PKCS11_import_wrapped_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
 	int r;
@@ -1314,56 +1314,274 @@ IPA_PKCS11_import_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_UTF8CHAR *label = NULL;
     Py_ssize_t id_length = 0;
     Py_ssize_t label_length = 0;
-	PyObject *cka_token_py = NULL;
-	CK_BBOOL *cka_token = &true;
-	PyObject *cka_sensitive_py = NULL;
-	CK_BBOOL *cka_sensitive = &false;
-	PyObject *cka_extractable_py = NULL;
-	CK_BBOOL *cka_extractable = &true;
 	CK_MECHANISM wrapping_mech = {CKM_RSA_PKCS, NULL, 0};
-	CK_OBJECT_CLASS key_class = CKO_PRIVATE_KEY;
+	CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
 	CK_KEY_TYPE key_type = CKK_RSA;
 
+    /*
+     * Default key values (secret key)
+     */
+    CK_BBOOL* cka_copyable = &true;
+    CK_BBOOL* cka_decrypt = &false;
+    CK_BBOOL* cka_derive = &false;
+    CK_BBOOL* cka_encrypt = &false;
+    CK_BBOOL* cka_extractable = &true;
+    CK_BBOOL* cka_modifiable = &true;
+    CK_BBOOL* cka_private = &true;
+    CK_BBOOL* cka_sensitive = &false;
+    CK_BBOOL* cka_sign = &false;
+    CK_BBOOL* cka_unwrap = &true;
+    CK_BBOOL* cka_verify = &false;
+    CK_BBOOL* cka_wrap = &true;
+    CK_BBOOL* cka_wrap_with_trusted = &false;
+
+    /* Py objects (secret_key) */
+    PyObject* cka_copyable_obj = NULL;
+    PyObject* cka_decrypt_obj = NULL;
+    PyObject* cka_derive_obj = NULL;
+    PyObject* cka_encrypt_obj = NULL;
+    PyObject* cka_extractable_obj = NULL;
+    PyObject* cka_modifiable_obj = NULL;
+    PyObject* cka_private_obj = NULL;
+    PyObject* cka_sensitive_obj = NULL;
+    PyObject* cka_sign_obj = NULL;
+    PyObject* cka_unwrap_obj = NULL;
+    PyObject* cka_verify_obj = NULL;
+    PyObject* cka_wrap_obj = NULL;
+    PyObject* cka_wrap_with_trusted_obj = NULL;
+
+    PyObj2Bool_mapping_t boolean_values_mapping[] = {
+        {cka_copyable_obj, cka_copyable},
+        {cka_decrypt_obj, cka_decrypt},
+        {cka_derive_obj, cka_derive},
+        {cka_encrypt_obj, cka_encrypt},
+        {cka_extractable_obj, cka_extractable},
+        {cka_modifiable_obj, cka_modifiable},
+        {cka_private_obj, cka_private},
+        {cka_sensitive_obj, cka_sensitive},
+        {cka_sign_obj, cka_sign},
+        {cka_unwrap_obj, cka_unwrap},
+        {cka_verify_obj, cka_verify_obj},
+        {cka_wrap_obj, cka_wrap},
+        {cka_wrap_with_trusted_obj, cka_wrap_with_trusted}
+    };
+
     static char *kwlist[] = {"label", "id", "data", "unwrapping_key", "wrapping_mech",
-    		"key_class", "key_type", "token", "sensitive", "extractable", NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|OOO", kwlist, &label_unicode, &id, &id_length,
-		&wrapped_key, &wrapped_key_len, &unwrapping_key_object, &wrapping_mech.mechanism, &key_class,
-		&key_type, &cka_token_py, &cka_sensitive_py, &cka_extractable_py)){
+    		"key_type",
+    		// secret key attrs
+    		"cka_copyable",
+			"cka_decrypt", "cka_derive", "cka_encrypt", "cka_extractable",
+			"cka_modifiable", "cka_private", "cka_sensitive", "cka_sign",
+			"cka_unwrap", "cka_verify", "cka_wrap", "cka_wrap_with_trusted", NULL };
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|0000000000000",
+			kwlist, &label_unicode, &id, &id_length,
+			&wrapped_key, &wrapped_key_len, &unwrapping_key_object,
+			&wrapping_mech.mechanism, &key_type,
+			// secret key attrs
+			&cka_copyable_obj,
+			&cka_decrypt_obj, &cka_derive_obj, &cka_encrypt_obj,
+			&cka_extractable_obj, &cka_modifiable_obj, &cka_private_obj,
+			&cka_sensitive_obj, &cka_sign_obj, &cka_unwrap_obj, &cka_verify_obj,
+			&cka_wrap_obj, &cka_wrap_with_trusted_obj)){
 		return NULL;
 	}
 	Py_XINCREF(label_unicode);
 	label = (unsigned char*) unicode_to_char_array(label_unicode, &label_length); //TODO verify signed/unsigned
 	Py_XDECREF(label_unicode);
 
-	if (cka_token_py != NULL)
-		cka_token = PyObject_IsTrue(cka_token_py) ? &true : &false;
-
-	if (cka_sensitive_py != NULL)
-		cka_sensitive = PyObject_IsTrue(cka_sensitive_py) ? &true : &false;
-
-	if (cka_extractable_py != NULL)
-		cka_extractable = PyObject_IsTrue(cka_extractable_py) ? &true : &false;
-
     r = _id_label_exists(self, id, id_length, label, label_length, key_class);
     if (r == 1){
     	PyErr_SetString(IPA_PKCS11DuplicationError,
-    			"Master key with same ID and LABEL already exists");
+    			"Secret key with same ID and LABEL already exists");
     	return NULL;
     } else if (r == -1){
     	return NULL;
     }
 
-	//TODO attributes by key type and class
+    /* Process keyword boolean arguments */
+    for(int i=0; i < sizeof(boolean_values_mapping)/sizeof(PyObj2Bool_mapping_t); ++i){
+    	if(boolean_values_mapping[i].py_obj != NULL){
+    		Py_INCREF(boolean_values_mapping[i].py_obj);
+    		boolean_values_mapping[i].bool = pyobj_to_bool(boolean_values_mapping[i].py_obj);
+    		Py_DECREF(boolean_values_mapping[i].py_obj);
+    	}
+    }
 
-	//TODO more attributes? //CKA_WRAP, CKA_UNWRAP
     CK_ATTRIBUTE template[] = {
          { CKA_CLASS, &key_class, sizeof(key_class) },
          { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
-         { CKA_ID, &id, sizeof(id) },
-         { CKA_LABEL, &label, label_length },
-         { CKA_TOKEN, cka_token, sizeof(CK_BBOOL) },
-         { CKA_SENSITIVE, cka_sensitive, sizeof(CK_BBOOL) },
-         { CKA_EXTRACTABLE, cka_extractable, sizeof(CK_BBOOL) }
+         {CKA_ID, id, id_length},
+         {CKA_LABEL, label, label_length},
+         {CKA_TOKEN, &true, sizeof(CK_BBOOL)},
+         //{CKA_COPYABLE, cka_copyable, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+         {CKA_DECRYPT, cka_decrypt, sizeof(CK_BBOOL)},
+         {CKA_DERIVE, cka_derive, sizeof(CK_BBOOL)},
+         {CKA_ENCRYPT, cka_encrypt, sizeof(CK_BBOOL)},
+         {CKA_EXTRACTABLE, cka_extractable, sizeof(CK_BBOOL)},
+         {CKA_MODIFIABLE, cka_modifiable, sizeof(CK_BBOOL)},
+         {CKA_PRIVATE, cka_private, sizeof(CK_BBOOL)},
+         {CKA_SENSITIVE, cka_sensitive, sizeof(CK_BBOOL)},
+         {CKA_SIGN, cka_sign, sizeof(CK_BBOOL)},
+         {CKA_UNWRAP, cka_unwrap, sizeof(CK_BBOOL)},
+         {CKA_VERIFY,cka_verify, sizeof(CK_BBOOL)},
+         {CKA_WRAP, cka_wrap, sizeof(CK_BBOOL)},
+         {CKA_WRAP_WITH_TRUSTED, cka_wrap_with_trusted, sizeof(CK_BBOOL)}
+    };
+
+    rv = self->p11->C_UnwrapKey(self->session, &wrapping_mech, unwrapping_key_object,
+    				wrapped_key, wrapped_key_len, template,
+    				sizeof(template)/sizeof(CK_ATTRIBUTE), &unwrapped_key_object);
+    if(!check_return_value(rv, "import_wrapped_key: key unwrapping")){
+    	return NULL;
+    }
+
+    return PyLong_FromUnsignedLong(unwrapped_key_object);
+
+}
+
+/**
+ * Import wrapped private key
+ *
+ */
+static PyObject *
+IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+{
+	CK_RV rv;
+	int r;
+	CK_BYTE_PTR wrapped_key = NULL;
+	CK_ULONG wrapped_key_len = 0;
+	CK_ULONG unwrapping_key_object = 0;
+	CK_OBJECT_HANDLE unwrapped_key_object = 0;
+	PyObject *label_unicode = NULL;
+    CK_BYTE *id = NULL;
+    CK_UTF8CHAR *label = NULL;
+    Py_ssize_t id_length = 0;
+    Py_ssize_t label_length = 0;
+	CK_MECHANISM wrapping_mech = {CKM_RSA_PKCS, NULL, 0};
+	CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+	CK_KEY_TYPE key_type = CKK_RSA;
+
+    /*
+     * Default key values (secret key)
+     */
+	CK_BBOOL* cka_always_authenticate = &false;
+	CK_BBOOL* cka_always_sensitive = &true;
+    CK_BBOOL* cka_copyable = &true;
+    CK_BBOOL* cka_decrypt = &false;
+    CK_BBOOL* cka_derive = &false;
+
+    CK_BBOOL* cka_extractable = &true;
+    CK_BBOOL* cka_local = &true;
+    CK_BBOOL* cka_modifiable = &true;
+    CK_BBOOL* cka_never_extractable = &true;
+    CK_BBOOL* cka_private = &true;
+    CK_BBOOL* cka_sensitive = &true;
+    CK_BBOOL* cka_sign = &true;
+    CK_BBOOL* cka_sign_recover = &true;
+    CK_BBOOL* cka_unwrap = &false;
+    CK_BBOOL* cka_wrap_with_trusted = &false;
+
+    /* Py objects (secret_key) */
+    PyObject* cka_always_authenticate_obj = NULL;
+    PyObject* cka_always_sensitive_obj = NULL;
+    PyObject* cka_copyable_obj = NULL;
+    PyObject* cka_decrypt_obj = NULL;
+    PyObject* cka_derive_obj = NULL;
+
+    PyObject* cka_extractable_obj = NULL;
+    PyObject* cka_local_obj = NULL;
+    PyObject* cka_modifiable_obj = NULL;
+    PyObject* cka_never_extractable_obj = NULL;
+    PyObject* cka_private_obj = NULL;
+    PyObject* cka_sensitive_obj = NULL;
+    PyObject* cka_sign_obj = NULL;
+    PyObject* cka_sign_recover_obj = NULL;
+    PyObject* cka_unwrap_obj = NULL;
+    PyObject* cka_wrap_with_trusted_obj = NULL;
+
+    PyObj2Bool_mapping_t boolean_values_mapping[] = {
+        {cka_always_authenticate_obj, cka_always_authenticate},
+        {cka_always_sensitive_obj, cka_always_sensitive},
+        {cka_copyable_obj, cka_copyable},
+        {cka_decrypt_obj, cka_decrypt},
+        {cka_derive_obj, cka_derive},
+
+        {cka_extractable_obj, cka_extractable},
+        {cka_local_obj, cka_local},
+        {cka_modifiable_obj, cka_modifiable},
+        {cka_never_extractable_obj, cka_never_extractable},
+        {cka_private_obj, cka_private},
+        {cka_sensitive_obj, cka_sensitive},
+        {cka_sign_obj, cka_sign},
+        {cka_sign_recover_obj, cka_sign_recover},
+        {cka_unwrap_obj, cka_unwrap},
+        {cka_wrap_with_trusted_obj, cka_wrap_with_trusted}
+    };
+
+    static char *kwlist[] = {"label", "id", "data", "unwrapping_key", "wrapping_mech",
+    		"key_type",
+    		// secret key attrs
+    		"cka_always_authenticate", "cka_always_sensitive", "cka_copyable",
+			"cka_decrypt", "cka_derive", "cka_extractable", "cka_local_obj",
+			"cka_modifiable"
+			"cka_never_extractable", "cka_private", "cka_sensitive", "cka_sign",
+			"cka_sign_recover", "cka_unwrap", "cka_wrap_with_trusted", NULL };
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|000000000000000",
+			kwlist, &label_unicode, &id, &id_length,
+			&wrapped_key, &wrapped_key_len, &unwrapping_key_object,
+			&wrapping_mech.mechanism, &key_type,
+			// secret key attrs
+			&cka_always_authenticate_obj, &cka_always_sensitive_obj,
+			&cka_copyable_obj, &cka_decrypt_obj, &cka_derive_obj,
+			&cka_extractable_obj, &cka_local_obj, &cka_modifiable_obj,
+			&cka_never_extractable, &cka_private_obj,
+			&cka_sensitive_obj, &cka_sign_obj, &cka_sign_recover,
+			&cka_unwrap_obj, &cka_wrap_with_trusted_obj)){
+		return NULL;
+	}
+	Py_XINCREF(label_unicode);
+	label = (unsigned char*) unicode_to_char_array(label_unicode, &label_length); //TODO verify signed/unsigned
+	Py_XDECREF(label_unicode);
+
+    r = _id_label_exists(self, id, id_length, label, label_length, CKO_SECRET_KEY);
+    if (r == 1){
+    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    			"Secret key with same ID and LABEL already exists");
+    	return NULL;
+    } else if (r == -1){
+    	return NULL;
+    }
+
+    /* Process keyword boolean arguments */
+    for(int i=0; i < sizeof(boolean_values_mapping)/sizeof(PyObj2Bool_mapping_t); ++i){
+    	if(boolean_values_mapping[i].py_obj != NULL){
+    		Py_INCREF(boolean_values_mapping[i].py_obj);
+    		boolean_values_mapping[i].bool = pyobj_to_bool(boolean_values_mapping[i].py_obj);
+    		Py_DECREF(boolean_values_mapping[i].py_obj);
+    	}
+    }
+
+    CK_ATTRIBUTE template[] = {
+         {CKA_CLASS, &key_class, sizeof(key_class)},
+         {CKA_KEY_TYPE, &key_type, sizeof(key_type)},
+         {CKA_ID, id, id_length},
+         {CKA_LABEL, label, label_length},
+         {CKA_TOKEN, &true, sizeof(CK_BBOOL)},
+         {CKA_ALWAYS_AUTHENTICATE, cka_always_authenticate, sizeof(CK_BBOOL)},
+         {CKA_ALWAYS_SENSITIVE, cka_always_sensitive, sizeof(CK_BBOOL)},
+         //{CKA_COPYABLE, cka_copyable, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+         {CKA_DECRYPT, cka_decrypt, sizeof(CK_BBOOL)},
+         {CKA_DERIVE, cka_derive, sizeof(CK_BBOOL)},
+         {CKA_EXTRACTABLE, cka_extractable, sizeof(CK_BBOOL)},
+         {CKA_LOCAL, cka_local, sizeof(CK_BBOOL)},
+         {CKA_MODIFIABLE, cka_modifiable, sizeof(CK_BBOOL)},
+         {CKA_NEVER_EXTRACTABLE, cka_never_extractable, sizeof(CK_BBOOL)},
+         {CKA_PRIVATE, cka_private, sizeof(CK_BBOOL)},
+         {CKA_SENSITIVE, cka_sensitive, sizeof(CK_BBOOL)},
+         {CKA_SIGN, cka_sign, sizeof(CK_BBOOL)},
+         {CKA_SIGN_RECOVER, cka_sign_recover, sizeof(CK_BBOOL)},
+         {CKA_UNWRAP, cka_unwrap, sizeof(CK_BBOOL)},
+         {CKA_WRAP_WITH_TRUSTED, cka_wrap_with_trusted, sizeof(CK_BBOOL)}
     };
 
     rv = self->p11->C_UnwrapKey(self->session, &wrapping_mech, unwrapping_key_object,
@@ -1599,8 +1817,11 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "export_wrapped_key",
 		(PyCFunction) IPA_PKCS11_export_wrapped_key, METH_VARARGS|METH_KEYWORDS,
 		"Export wrapped private key" },
-		{ "import_wrapped_key",
-		(PyCFunction) IPA_PKCS11_import_wrapped_key, METH_VARARGS|METH_KEYWORDS,
+		{ "import_wrapped_secret_key",
+		(PyCFunction) IPA_PKCS11_import_wrapped_secret_key, METH_VARARGS|METH_KEYWORDS,
+		"Import wrapped secret key" },
+		{ "import_wrapped_private_key",
+		(PyCFunction) IPA_PKCS11_import_wrapped_private_key, METH_VARARGS|METH_KEYWORDS,
 		"Import wrapped private key" },
 		{ "set_attribute",
 		(PyCFunction) IPA_PKCS11_set_attribute, METH_VARARGS|METH_KEYWORDS,
