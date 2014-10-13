@@ -1422,6 +1422,17 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		attribute.pValue = PyObject_IsTrue(value) ? &true : &false;
 		attribute.ulValueLen = sizeof(CK_BBOOL);
 		break;
+	case CKA_ID:
+		if(!PyString_Check(value)){
+			ret = NULL;
+			goto final;
+		}
+		if (PyString_AsStringAndSize(value,
+				&attribute.pValue, &attribute.ulValueLen) == -1){
+			ret = NULL;
+			goto final;
+		}
+		break;
 	case CKA_LABEL:
 		if(!PyUnicode_Check(value)){
 			ret = NULL;
@@ -1514,6 +1525,9 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	case CKA_LABEL:
 		ret = char_array_to_unicode(value, template[0].ulValueLen);
+		break;
+	case CKA_ID:
+		ret = Py_BuildValue("s#", value, template[0].ulValueLen);
 		break;
 	default:
 		ret = NULL;
@@ -1731,6 +1745,10 @@ PyMODINIT_FUNC initipapkcs11(void) {
 	PyObject *IPA_PKCS11_ATTR_CKA_EXTRACTABLE_obj = PyInt_FromLong(CKA_EXTRACTABLE);
 	PyObject_SetAttrString(m, "CKA_EXTRACTABLE", IPA_PKCS11_ATTR_CKA_EXTRACTABLE_obj);
 	Py_XDECREF(IPA_PKCS11_ATTR_CKA_EXTRACTABLE_obj);
+
+	PyObject *IPA_PKCS11_ATTR_CKA_ID_obj = PyInt_FromLong(CKA_ID);
+	PyObject_SetAttrString(m, "CKA_ID", IPA_PKCS11_ATTR_CKA_ID_obj);
+	Py_XDECREF(IPA_PKCS11_ATTR_CKA_ID_obj);
 
 	PyObject *IPA_PKCS11_ATTR_CKA_LOCAL_obj = PyInt_FromLong(CKA_LOCAL);
 	PyObject_SetAttrString(m, "CKA_LOCAL", IPA_PKCS11_ATTR_CKA_LOCAL_obj);
