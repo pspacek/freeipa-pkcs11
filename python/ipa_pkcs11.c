@@ -1488,6 +1488,12 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	CK_ATTRIBUTE template[] = {attribute};
 
 	rv = self->p11->C_GetAttributeValue(self->session, object, template, 1);
+	// attribute doesn't exists
+	if (rv == CKR_ATTRIBUTE_TYPE_INVALID || template[0].ulValueLen == -1){
+		PyErr_SetString(IPA_PKCS11NotFound, "attribute does not exist");
+		ret = NULL;
+		goto final;
+	}
     if(!check_return_value(rv, "get_attribute init")){
     	ret = NULL;
     	goto final;
