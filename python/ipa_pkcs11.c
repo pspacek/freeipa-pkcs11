@@ -1448,6 +1448,16 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		}
 		attribute.ulValueLen = len;
 		break;
+	case CKA_KEY_TYPE:
+		if(!PyInt_Check(value)){
+			PyErr_SetString(IPA_PKCS11Error, "Integer value expected");
+			ret = NULL;
+			goto final;
+		}
+		unsigned long lv = PyInt_AsUnsignedLongMask(value);
+		attribute.pValue = &lv;
+		attribute.ulValueLen = sizeof(unsigned long);
+		break;
 	default:
 		ret = NULL;
 		PyErr_SetString(IPA_PKCS11Error, "Unknown attribute");
@@ -1478,7 +1488,7 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 
     static char *kwlist[] = {"key_object", "attr", NULL };
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kk|", kwlist, &object,
-			&attr, &value)){
+			&attr)){
 		return NULL;
 	}
 
@@ -1529,13 +1539,20 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	case CKA_VERIFY_RECOVER:
 	case CKA_WRAP:
 	case CKA_WRAP_WITH_TRUSTED:
+		/* booleans */
 		ret = PyBool_FromLong(*(CK_BBOOL*)value);
 		break;
 	case CKA_LABEL:
+		/* unicode string */
 		ret = char_array_to_unicode(value, template[0].ulValueLen);
 		break;
 	case CKA_ID:
+		/* byte arrays */
 		ret = Py_BuildValue("s#", value, template[0].ulValueLen);
+		break;
+	case CKA_KEY_TYPE:
+		/* unsigned long */
+		ret = Py_BuildValue("k", (unsigned long *) value);
 		break;
 	default:
 		ret = NULL;
@@ -1758,6 +1775,10 @@ PyMODINIT_FUNC initipapkcs11(void) {
 	PyObject_SetAttrString(m, "CKA_ID", IPA_PKCS11_ATTR_CKA_ID_obj);
 	Py_XDECREF(IPA_PKCS11_ATTR_CKA_ID_obj);
 
+	PyObject *IPA_PKCS11_ATTR_CKA_KEY_TYPE_obj = PyInt_FromLong(CKA_KEY_TYPE);
+	PyObject_SetAttrString(m, "CKA_KEY_TYPE", IPA_PKCS11_ATTR_CKA_KEY_TYPE_obj);
+	Py_XDECREF(IPA_PKCS11_ATTR_CKA_KEY_TYPE_obj);
+
 	PyObject *IPA_PKCS11_ATTR_CKA_LOCAL_obj = PyInt_FromLong(CKA_LOCAL);
 	PyObject_SetAttrString(m, "CKA_LOCAL", IPA_PKCS11_ATTR_CKA_LOCAL_obj);
 	Py_XDECREF(IPA_PKCS11_ATTR_CKA_LOCAL_obj);
@@ -1817,4 +1838,5 @@ PyMODINIT_FUNC initipapkcs11(void) {
 	PyObject *IPA_PKCS11_ATTR_CKA_LABEL_obj = PyInt_FromLong(CKA_LABEL);
 	PyObject_SetAttrString(m, "CKA_LABEL", IPA_PKCS11_ATTR_CKA_LABEL_obj);
 	Py_XDECREF(IPA_PKCS11_ATTR_CKA_LABEL_obj);
+
 }
