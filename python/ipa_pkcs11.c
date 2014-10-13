@@ -1424,6 +1424,7 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	case CKA_ID:
 		if(!PyString_Check(value)){
+			PyErr_SetString(IPA_PKCS11Error, "String value expected");
 			ret = NULL;
 			goto final;
 		}
@@ -1435,6 +1436,7 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	case CKA_LABEL:
 		if(!PyUnicode_Check(value)){
+			PyErr_SetString(IPA_PKCS11Error, "Unicode value expected");
 			ret = NULL;
 			goto final;
 		}
