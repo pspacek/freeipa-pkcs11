@@ -748,7 +748,7 @@ IPA_PKCS11_get_key_handler(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#OO", kwlist,
-			 &class, &label_unicode, &id, &id_length, &key_length,
+			 &class, &label_unicode, &id, &id_length,
 			 &cka_wrap_bool, &cka_unwrap_bool)){
 		return NULL;
 	}
@@ -816,7 +816,7 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#OO", kwlist,
-			 &class, &label_unicode, &id, &id_length, &key_length,
+			 &class, &label_unicode, &id, &id_length,
 			 &cka_wrap_bool, &cka_unwrap_bool)){
 		return NULL;
 	}
