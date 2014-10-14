@@ -1641,15 +1641,11 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
      * Default key values (private key)
      */
 	CK_BBOOL* cka_always_authenticate = &false;
-	CK_BBOOL* cka_always_sensitive = &true;
     CK_BBOOL* cka_copyable = &true;
     CK_BBOOL* cka_decrypt = &false;
     CK_BBOOL* cka_derive = &false;
-
     CK_BBOOL* cka_extractable = &true;
-    CK_BBOOL* cka_local = &true;
     CK_BBOOL* cka_modifiable = &true;
-    CK_BBOOL* cka_never_extractable = &true;
     CK_BBOOL* cka_private = &true;
     CK_BBOOL* cka_sensitive = &true;
     CK_BBOOL* cka_sign = &true;
@@ -1659,15 +1655,11 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
 
     /* Py objects (private_key) */
     PyObject* cka_always_authenticate_obj = NULL;
-    PyObject* cka_always_sensitive_obj = NULL;
     PyObject* cka_copyable_obj = NULL;
     PyObject* cka_decrypt_obj = NULL;
     PyObject* cka_derive_obj = NULL;
-
     PyObject* cka_extractable_obj = NULL;
-    PyObject* cka_local_obj = NULL;
     PyObject* cka_modifiable_obj = NULL;
-    PyObject* cka_never_extractable_obj = NULL;
     PyObject* cka_private_obj = NULL;
     PyObject* cka_sensitive_obj = NULL;
     PyObject* cka_sign_obj = NULL;
@@ -1677,14 +1669,11 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
 
     PyObj2Bool_mapping_t boolean_values_mapping[] = {
         {cka_always_authenticate_obj, cka_always_authenticate},
-        {cka_always_sensitive_obj, cka_always_sensitive},
         {cka_copyable_obj, cka_copyable},
         {cka_decrypt_obj, cka_decrypt},
         {cka_derive_obj, cka_derive},
         {cka_extractable_obj, cka_extractable},
-        {cka_local_obj, cka_local},
         {cka_modifiable_obj, cka_modifiable},
-        {cka_never_extractable_obj, cka_never_extractable},
         {cka_private_obj, cka_private},
         {cka_sensitive_obj, cka_sensitive},
         {cka_sign_obj, cka_sign},
@@ -1696,20 +1685,19 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
     static char *kwlist[] = {"label", "id", "data", "unwrapping_key", "wrapping_mech",
     		"key_type",
     		// secret key attrs
-    		"cka_always_authenticate", "cka_always_sensitive", "cka_copyable",
-			"cka_decrypt", "cka_derive", "cka_extractable", "cka_local_obj",
-			"cka_modifiable"
-			"cka_never_extractable", "cka_private", "cka_sensitive", "cka_sign",
+    		"cka_always_authenticate", "cka_copyable",
+			"cka_decrypt", "cka_derive", "cka_extractable",
+			"cka_modifiable", "cka_private", "cka_sensitive", "cka_sign",
 			"cka_sign_recover", "cka_unwrap", "cka_wrap_with_trusted", NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|OOOOOOOOOOOOOOO",
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|OOOOOOOOOOOO",
 			kwlist, &label_unicode, &id, &id_length,
 			&wrapped_key, &wrapped_key_len, &unwrapping_key_object,
 			&wrapping_mech.mechanism, &key_type,
 			// secret key attrs
-			&cka_always_authenticate_obj, &cka_always_sensitive_obj,
+			&cka_always_authenticate_obj,
 			&cka_copyable_obj, &cka_decrypt_obj, &cka_derive_obj,
-			&cka_extractable_obj, &cka_local_obj, &cka_modifiable_obj,
-			&cka_never_extractable, &cka_private_obj,
+			&cka_extractable_obj, &cka_modifiable_obj,
+			&cka_private_obj,
 			&cka_sensitive_obj, &cka_sign_obj, &cka_sign_recover,
 			&cka_unwrap_obj, &cka_wrap_with_trusted_obj)){
 		return NULL;
@@ -1743,14 +1731,11 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
          {CKA_LABEL, label, label_length},
          {CKA_TOKEN, &true, sizeof(CK_BBOOL)},
          {CKA_ALWAYS_AUTHENTICATE, cka_always_authenticate, sizeof(CK_BBOOL)},
-         {CKA_ALWAYS_SENSITIVE, cka_always_sensitive, sizeof(CK_BBOOL)},
          //{CKA_COPYABLE, cka_copyable, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
          {CKA_DECRYPT, cka_decrypt, sizeof(CK_BBOOL)},
          {CKA_DERIVE, cka_derive, sizeof(CK_BBOOL)},
          {CKA_EXTRACTABLE, cka_extractable, sizeof(CK_BBOOL)},
-         {CKA_LOCAL, cka_local, sizeof(CK_BBOOL)},
          {CKA_MODIFIABLE, cka_modifiable, sizeof(CK_BBOOL)},
-         {CKA_NEVER_EXTRACTABLE, cka_never_extractable, sizeof(CK_BBOOL)},
          {CKA_PRIVATE, cka_private, sizeof(CK_BBOOL)},
          {CKA_SENSITIVE, cka_sensitive, sizeof(CK_BBOOL)},
          {CKA_SIGN, cka_sign, sizeof(CK_BBOOL)},
