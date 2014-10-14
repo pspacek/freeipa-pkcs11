@@ -1401,7 +1401,7 @@ IPA_PKCS11_import_wrapped_secret_key(IPA_PKCS11* self, PyObject *args, PyObject 
         {cka_sensitive_obj, cka_sensitive},
         {cka_sign_obj, cka_sign},
         {cka_unwrap_obj, cka_unwrap},
-        {cka_verify_obj, cka_verify_obj},
+        {cka_verify_obj, cka_verify},
         {cka_wrap_obj, cka_wrap},
         {cka_wrap_with_trusted_obj, cka_wrap_with_trusted}
     };
