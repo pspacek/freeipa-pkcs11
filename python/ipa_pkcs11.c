@@ -1237,7 +1237,6 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
         {CKA_VERIFY_RECOVER, cka_verify_recover, sizeof(CK_BBOOL)},
         {CKA_WRAP, cka_wrap, sizeof(CK_BBOOL)},
 		};
-	fprintf(stderr, "import pubkey cka_wrap: %d/n", cka_wrap); //TODO remove
     CK_OBJECT_HANDLE object;
 
 	if (pkey->type != EVP_PKEY_RSA){
