@@ -3,6 +3,7 @@
 
 import ipapkcs11
 from ipapkcs11 import IPA_PKCS11
+import sys
 
 def str_to_hex(s):
     return ''.join("{:02x}".format(ord(c)) for c in s)
@@ -11,12 +12,14 @@ if __name__ == '__main__':
     p11 = IPA_PKCS11()
     try:
         p11.initialize(0, "1234", "/usr/lib64/pkcs11/libsofthsm2.so")
+        p11.generate_replica_key_pair(u"replica1", "id1", pub_cka_wrap=True,
+                                      priv_cka_unwrap=True)
+        #sys.exit(0)
         p11.generate_master_key(u"žžž-aest", "m", key_length=16)
-        p11.generate_replica_key_pair(u"replica1", "id1")
-        p11.generate_replica_key_pair(u"replica2", "id2")
+        p11.generate_replica_key_pair(u"replica2", "id2", pub_cka_wrap=True, pri_cka_unwrap=True)
         key = p11.get_key_handler(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica1", cka_wrap=True)
-        key_priv = p11.get_key_handler(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica1", cka_wrap=True)
-        key2_priv = p11.get_key_handler(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica2", cka_wrap=True)
+        key_priv = p11.get_key_handler(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica1", cka_unwrap=True)
+        key2_priv = p11.get_key_handler(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica2", cka_unwrap=True)
         key2 = p11.get_key_handler(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica2", cka_wrap=True)
         print 'key handler', key
         try:
@@ -90,9 +93,9 @@ if __name__ == '__main__':
         print "Delete key ", p11.delete_key(key)
         p11.delete_key(key2_priv)
         p11.delete_key(key3)
-    except ipapkcs11.Exception as e:
-        print "PKCS11 FAILURE:", e
-    except Exception as e:
-        print "GLOBAL FAILURE:", e
+    #except ipapkcs11.Exception as e:
+    #    print "PKCS11 FAILURE:", e
+    #except Exception as e:
+    #    print "GLOBAL FAILURE:", e
     finally:
         p11.finalize()
