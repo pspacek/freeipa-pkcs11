@@ -1229,7 +1229,7 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 static PyObject *
 IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_t label_length,
 		CK_BYTE *id, Py_ssize_t id_length, EVP_PKEY *pkey, CK_BBOOL* cka_copyable,
-		CK_BBOOL* cka_derive, CK_BBOOL* cka_encrypt, CK_BBOOL*cka_local,
+		CK_BBOOL* cka_derive, CK_BBOOL* cka_encrypt,
 		CK_BBOOL* cka_modifiable, CK_BBOOL* cka_private, CK_BBOOL* cka_trusted,
 		CK_BBOOL* cka_verify, CK_BBOOL* cka_verify_recover, CK_BBOOL* cka_wrap)
 {
@@ -1258,7 +1258,6 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
         //{CKA_COPYABLE, cka_copyable, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
         {CKA_DERIVE, cka_derive, sizeof(CK_BBOOL)},
         {CKA_ENCRYPT, cka_encrypt, sizeof(CK_BBOOL)},
-        {CKA_LOCAL, cka_local, sizeof(CK_BBOOL)},
         {CKA_MODIFIABLE, cka_modifiable, sizeof(CK_BBOOL)},
         {CKA_PRIVATE, cka_private, sizeof(CK_BBOOL)},
         {CKA_TRUSTED, cka_trusted, sizeof(CK_BBOOL)},
@@ -1332,7 +1331,6 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     CK_BBOOL* cka_copyable = &true;
     CK_BBOOL* cka_derive = &false;
     CK_BBOOL* cka_encrypt = &false;
-    CK_BBOOL* cka_local = &true;
     CK_BBOOL* cka_modifiable = &true;
     CK_BBOOL* cka_private = &true;
     CK_BBOOL* cka_trusted = &false;
@@ -1344,7 +1342,6 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     PyObject* cka_copyable_obj = NULL;
     PyObject* cka_derive_obj = NULL;
     PyObject* cka_encrypt_obj = NULL;
-    PyObject* cka_local_obj = NULL;
     PyObject* cka_modifiable_obj = NULL;
     PyObject* cka_private_obj = NULL;
     PyObject* cka_trusted_obj = NULL;
@@ -1357,7 +1354,6 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
         {cka_copyable_obj, cka_copyable},
         {cka_derive_obj, cka_derive},
         {cka_encrypt_obj, cka_encrypt},
-        {cka_local_obj, cka_local},
         {cka_modifiable_obj, cka_modifiable},
         {cka_private_obj, cka_private},
         {cka_trusted_obj, cka_trusted},
@@ -1368,13 +1364,13 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 
     static char *kwlist[] = {"label", "id", "data",
     		/* public key attributes */
-    		"cka_copyable", "cka_derive", "cka_encrypt", "cka_local",
+    		"cka_copyable", "cka_derive", "cka_encrypt",
     		"cka_modifiable", "cka_private", "cka_trusted", "cka_verify",
     		"cka_verify_recover", "cka_wrap" , NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#|OOOOOOOOOO", kwlist,
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#|OOOOOOOOO", kwlist,
 			&label_unicode, &id, &id_length, &data, &data_length,
 			/* public key attributes */
-			&cka_copyable_obj, &cka_derive_obj, &cka_encrypt_obj, &cka_local_obj,
+			&cka_copyable_obj, &cka_derive_obj, &cka_encrypt_obj,
 			&cka_modifiable_obj, &cka_private_obj, &cka_trusted_obj, &cka_verify_obj,
 			&cka_verify_recover_obj, &cka_wrap_obj)){
 		return NULL;
