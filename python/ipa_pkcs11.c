@@ -653,10 +653,125 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
     int id_length = 0;
     PyObject* label_unicode = NULL;
     Py_ssize_t label_length = 0;
-	static char *kwlist[] = {"label", "id", "modulus_bits", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|k", kwlist,
-			&label_unicode, &id, &id_length, &modulus_bits)){
+    /*
+     * Default key values (public key)
+     */
+    CK_BBOOL* pub_cka_copyable = &true;
+    CK_BBOOL* pub_cka_derive = &false;
+    CK_BBOOL* pub_cka_encrypt = &false;
+    CK_BBOOL* pub_cka_local = &true;
+    CK_BBOOL* pub_cka_modifiable = &true;
+    CK_BBOOL* pub_cka_private = &true;
+    CK_BBOOL* pub_cka_trusted = &false;
+    CK_BBOOL* pub_cka_verify = &true;
+    CK_BBOOL* pub_cka_verify_recover = &true;
+    CK_BBOOL* pub_cka_wrap = &false;
+
+    /*
+     * Default key values (private key)
+     */
+	CK_BBOOL* pri_cka_always_authenticate = &false;
+	CK_BBOOL* pri_cka_always_sensitive = &true;
+    CK_BBOOL* pri_cka_copyable = &true;
+    CK_BBOOL* pri_cka_decrypt = &false;
+    CK_BBOOL* pri_cka_derive = &false;
+    CK_BBOOL* pri_cka_extractable = &true;
+    CK_BBOOL* pri_cka_local = &true;
+    CK_BBOOL* pri_cka_modifiable = &true;
+    CK_BBOOL* pri_cka_never_extractable = &true;
+    CK_BBOOL* pri_cka_private = &true;
+    CK_BBOOL* pri_cka_sensitive = &true;
+    CK_BBOOL* pri_cka_sign = &true;
+    CK_BBOOL* pri_cka_sign_recover = &true;
+    CK_BBOOL* pri_cka_unwrap = &false;
+    CK_BBOOL* pri_cka_wrap_with_trusted = &false;
+
+    /* Py objects (public_key) */
+    PyObject* pub_cka_copyable_obj = NULL;
+    PyObject* pub_cka_derive_obj = NULL;
+    PyObject* pub_cka_encrypt_obj = NULL;
+    PyObject* pub_cka_local_obj = NULL;
+    PyObject* pub_cka_modifiable_obj = NULL;
+    PyObject* pub_cka_private_obj = NULL;
+    PyObject* pub_cka_trusted_obj = NULL;
+    PyObject* pub_cka_verify_obj = NULL;
+    PyObject* pub_cka_verify_recover_obj = NULL;
+    PyObject* pub_cka_wrap_obj = NULL;
+
+    /* Py objects (private_key) */
+    PyObject* pri_cka_always_authenticate_obj = NULL;
+    PyObject* pri_cka_always_sensitive_obj = NULL;
+    PyObject* pri_cka_copyable_obj = NULL;
+    PyObject* pri_cka_decrypt_obj = NULL;
+    PyObject* pri_cka_derive_obj = NULL;
+    PyObject* pri_cka_extractable_obj = NULL;
+    PyObject* pri_cka_local_obj = NULL;
+    PyObject* pri_cka_modifiable_obj = NULL;
+    PyObject* pri_cka_never_extractable_obj = NULL;
+    PyObject* pri_cka_private_obj = NULL;
+    PyObject* pri_cka_sensitive_obj = NULL;
+    PyObject* pri_cka_sign_obj = NULL;
+    PyObject* pri_cka_sign_recover_obj = NULL;
+    PyObject* pri_cka_unwrap_obj = NULL;
+    PyObject* pri_cka_wrap_with_trusted_obj = NULL;
+
+    PyObj2Bool_mapping_t boolean_values_mapping[] = {
+        {pub_cka_copyable_obj, pub_cka_copyable},
+        {pub_cka_derive_obj, pub_cka_derive},
+        {pub_cka_encrypt_obj, pub_cka_encrypt},
+        {pub_cka_local_obj, pub_cka_local},
+        {pub_cka_modifiable_obj, pub_cka_modifiable},
+        {pub_cka_private_obj, pub_cka_private},
+        {pub_cka_trusted_obj, pub_cka_trusted},
+        {pub_cka_verify_obj, pub_cka_verify},
+        {pub_cka_verify_recover_obj, pub_cka_verify_recover},
+        {pub_cka_wrap_obj, pub_cka_wrap},
+        {pri_cka_always_authenticate_obj, pri_cka_always_authenticate},
+        {pri_cka_always_sensitive_obj, pri_cka_always_sensitive},
+        {pri_cka_copyable_obj, pri_cka_copyable},
+        {pri_cka_decrypt_obj, pri_cka_decrypt},
+        {pri_cka_derive_obj, pri_cka_derive},
+        {pri_cka_extractable_obj, pri_cka_extractable},
+        {pri_cka_local_obj, pri_cka_local},
+        {pri_cka_modifiable_obj, pri_cka_modifiable},
+        {pri_cka_never_extractable_obj, pri_cka_never_extractable},
+        {pri_cka_private_obj, pri_cka_private},
+        {pri_cka_sensitive_obj, pri_cka_sensitive},
+        {pri_cka_sign_obj, pri_cka_sign},
+        {pri_cka_sign_recover_obj, pri_cka_sign_recover},
+        {pri_cka_unwrap_obj, pri_cka_unwrap},
+        {pri_cka_wrap_with_trusted_obj, pri_cka_wrap_with_trusted}
+    };
+
+    static char *kwlist[] = {"label", "id", "modulus_bits",
+            /* public key kw */
+            "pub_cka_copyable", "pub_cka_derive", "pub_cka_encrypt",
+            "pub_cka_local", "pub_cka_modifiable", "pub_cka_private",
+            "pub_cka_trusted", "pub_cka_verify", "pub_cka_verify_recover",
+            "pub_cka_wrap",
+            /* private key kw*/
+            "pri_cka_always_authenticate", "pri_cka_always_sensitive",
+            "pri_cka_copyable", "pri_cka_decrypt", "pri_cka_derive",
+            "pri_cka_extractable", "pri_cka_local", "pri_cka_modifiable",
+            "pri_cka_never_extractable", "pri_cka_private",
+            "pri_cka_sensitive", "pri_cka_sign", "pri_cka_sign_recover",
+            "pri_cka_unwrap", "pri_cka_wrap_with_trusted", NULL };
+
+     if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#|kOOOOOOOOOOOOOOOOOOOOOOOOO",
+            kwlist, &label_unicode, &id, &id_length, &modulus_bits,
+            /* public key kw */
+            &pub_cka_copyable_obj, &pub_cka_derive_obj, &pub_cka_encrypt_obj,
+            &pub_cka_local_obj, &pub_cka_modifiable_obj, &pub_cka_private_obj,
+            &pub_cka_trusted_obj, &pub_cka_verify_obj, &pub_cka_verify_recover_obj,
+            &pub_cka_wrap_obj,
+            /* private key kw*/
+            &pri_cka_always_authenticate_obj, &pri_cka_always_sensitive_obj,
+            &pri_cka_copyable_obj, &pri_cka_decrypt_obj,&pri_cka_derive_obj,
+            &pri_cka_extractable_obj, &pri_cka_local_obj, &pri_cka_modifiable_obj,
+            &pri_cka_never_extractable_obj, &pri_cka_private_obj,
+            &pri_cka_sensitive_obj, &pri_cka_sign_obj, &pri_cka_sign_recover_obj,
+            &pri_cka_unwrap_obj, &pri_cka_wrap_with_trusted_obj)){
 		return NULL;
 	}
 
@@ -689,27 +804,52 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
     	return NULL;
     }
 
+    /* Process keyword boolean arguments */
+    for(int i=0; i < sizeof(boolean_values_mapping)/sizeof(PyObj2Bool_mapping_t); ++i){
+    	if(boolean_values_mapping[i].py_obj != NULL){
+    		Py_INCREF(boolean_values_mapping[i].py_obj);
+    		boolean_values_mapping[i].bool = pyobj_to_bool(boolean_values_mapping[i].py_obj);
+    		Py_DECREF(boolean_values_mapping[i].py_obj);
+    	}
+    }
+
     CK_BYTE public_exponent[] = { 1, 0, 1 }; /* 65537 (RFC 6376 section 3.3.1)*/
     CK_ATTRIBUTE publicKeyTemplate[] = {
          {CKA_ID, id, id_length},
          {CKA_LABEL, label, label_length},
-         {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
-         {CKA_WRAP, &true, sizeof(true)}, //TODO param?
-         {CKA_MODULUS_BITS, &modulus_bits, sizeof(modulus_bits)}, //TODO param
+         {CKA_TOKEN, &true, sizeof(true)},
+         {CKA_MODULUS_BITS, &modulus_bits, sizeof(modulus_bits)},
          {CKA_PUBLIC_EXPONENT, public_exponent, 3},
+         //{CKA_COPYABLE, pub_cka_copyable, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+         {CKA_DERIVE, pub_cka_derive, sizeof(CK_BBOOL)},
+         {CKA_ENCRYPT, pub_cka_encrypt, sizeof(CK_BBOOL)},
+         {CKA_LOCAL, pub_cka_local, sizeof(CK_BBOOL)},
+         {CKA_MODIFIABLE, pub_cka_modifiable, sizeof(CK_BBOOL)},
+         {CKA_PRIVATE, pub_cka_private, sizeof(CK_BBOOL)},
+         {CKA_TRUSTED, pub_cka_trusted, sizeof(CK_BBOOL)},
+         {CKA_VERIFY, pub_cka_verify, sizeof(CK_BBOOL)},
+         {CKA_VERIFY_RECOVER, pub_cka_verify_recover, sizeof(CK_BBOOL)},
+         {CKA_WRAP, pub_cka_wrap, sizeof(CK_BBOOL)},
     };
     CK_ATTRIBUTE privateKeyTemplate[] = {
          {CKA_ID, id, id_length},
          {CKA_LABEL, label, label_length},
-         {CKA_TOKEN, &true, sizeof(true)}, //TODO param?
-         {CKA_PRIVATE, &true, sizeof(true)}, //TODO param?
-         {CKA_SENSITIVE, &false, sizeof(false)}, // prevents wrapping
-         	 	 	 	 	 	 	 	 	 	 // TODO remove if bug is fixed
-         	 	 	 	 	 	 	 	 	 	 //TODO param?
-         {CKA_UNWRAP, &true, sizeof(true)}, //TODO param?
-         {CKA_EXTRACTABLE, &true, sizeof(true)}, //TODO param?
-         {CKA_WRAP_WITH_TRUSTED, &false, sizeof(false)} // prevents wrapping
-         	 	 	 	 	 	 	 	 	 	 //TODO param?
+         {CKA_TOKEN, &true, sizeof(true)},
+         {CKA_ALWAYS_AUTHENTICATE, pri_cka_always_authenticate, sizeof(CK_BBOOL)},
+         {CKA_ALWAYS_SENSITIVE, pri_cka_always_sensitive, sizeof(CK_BBOOL)},
+         //{CKA_COPYABLE, pri_cka_copyable, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+         {CKA_DECRYPT, pri_cka_decrypt, sizeof(CK_BBOOL)},
+         {CKA_DERIVE, pri_cka_derive, sizeof(CK_BBOOL)},
+         {CKA_EXTRACTABLE, pri_cka_extractable, sizeof(CK_BBOOL)},
+         {CKA_LOCAL, pri_cka_local, sizeof(CK_BBOOL)},
+         {CKA_MODIFIABLE, pri_cka_modifiable, sizeof(CK_BBOOL)},
+         {CKA_NEVER_EXTRACTABLE, pri_cka_never_extractable, sizeof(CK_BBOOL)},
+         {CKA_PRIVATE, pri_cka_private, sizeof(CK_BBOOL)},
+         {CKA_SENSITIVE, pri_cka_sensitive, sizeof(CK_BBOOL)},
+         {CKA_SIGN, pri_cka_sign, sizeof(CK_BBOOL)},
+         {CKA_SIGN_RECOVER, pri_cka_sign_recover, sizeof(CK_BBOOL)},
+         {CKA_UNWRAP, pri_cka_unwrap, sizeof(CK_BBOOL)},
+         {CKA_WRAP_WITH_TRUSTED, pri_cka_wrap_with_trusted, sizeof(CK_BBOOL)}
     };
 
     rv = self->p11->C_GenerateKeyPair(self->session,
