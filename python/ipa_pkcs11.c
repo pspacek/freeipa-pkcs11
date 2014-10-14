@@ -845,7 +845,7 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
  *
  */
 static PyObject *
-IPA_PKCS11_get_key_handler(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+IPA_PKCS11_get_key_handle(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
     CK_BYTE *id = NULL;
@@ -995,14 +995,14 @@ static PyObject *
 IPA_PKCS11_delete_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
-    CK_OBJECT_HANDLE key_handler = 0;
-	static char *kwlist[] = {"key_handler", NULL };
+    CK_OBJECT_HANDLE key_handle = 0;
+	static char *kwlist[] = {"key_handle", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|", kwlist,
-			 &key_handler)){
+			 &key_handle)){
 		return NULL;
 	}
-	rv = self->p11->C_DestroyObject(self->session, key_handler);
+	rv = self->p11->C_DestroyObject(self->session, key_handle);
 	if(!check_return_value(rv, "object deletion")){
 		return NULL;
 	}
@@ -1019,12 +1019,12 @@ IPA_PKCS11_export_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
 	CK_UTF8CHAR_PTR value = NULL;
-    CK_OBJECT_HANDLE key_handler = 0;
+    CK_OBJECT_HANDLE key_handle = 0;
     PyObject *ret = NULL;
-	static char *kwlist[] = {"key_handler", NULL };
+	static char *kwlist[] = {"key_handle", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|", kwlist,
-			 &key_handler)){
+			 &key_handle)){
 		return NULL;
 	}
 
@@ -1033,7 +1033,7 @@ IPA_PKCS11_export_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
          {CKA_VALUE, NULL_PTR, 0}
     };
 
-    rv = self->p11->C_GetAttributeValue(self->session, key_handler, obj_template, 1);
+    rv = self->p11->C_GetAttributeValue(self->session, key_handle, obj_template, 1);
     if (!check_return_value(rv, "get attribute value - prepare")){
     	return NULL;
     }
@@ -1042,7 +1042,7 @@ IPA_PKCS11_export_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     value = (CK_UTF8CHAR_PTR) malloc(obj_template[0].ulValueLen * sizeof(CK_BYTE));
     obj_template[0].pValue = value;
 
-    rv = self->p11->C_GetAttributeValue(self->session, key_handler, obj_template, 1);
+    rv = self->p11->C_GetAttributeValue(self->session, key_handle, obj_template, 1);
     if (!check_return_value(rv, "get attribute value")){
     	free(value);
     	return NULL;
@@ -1162,7 +1162,7 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_OBJECT_HANDLE object = 0;
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
     CK_KEY_TYPE key_type = CKK_RSA;
-	static char *kwlist[] = {"key_handler", NULL };
+	static char *kwlist[] = {"key_handle", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|", kwlist,
 			 &object)){
@@ -1852,8 +1852,8 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "generate_replica_key_pair",
 		(PyCFunction) IPA_PKCS11_generate_replica_key_pair, METH_VARARGS|METH_KEYWORDS,
 		"Generate replica key pair" },
-		{ "get_key_handler",
-		(PyCFunction) IPA_PKCS11_get_key_handler, METH_VARARGS|METH_KEYWORDS,
+		{ "get_key_handle",
+		(PyCFunction) IPA_PKCS11_get_key_handle, METH_VARARGS|METH_KEYWORDS,
 		"Get key" },
 		{ "find_keys",
 		(PyCFunction) IPA_PKCS11_find_keys, METH_VARARGS|METH_KEYWORDS,

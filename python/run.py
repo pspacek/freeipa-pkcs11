@@ -16,20 +16,20 @@ if __name__ == '__main__':
                                       priv_cka_unwrap=True)
         #sys.exit(0)
         p11.generate_master_key(u"žžž-aest", "m", key_length=16)
-        p11.generate_replica_key_pair(u"replica2", "id2", pub_cka_wrap=True, pri_cka_unwrap=True)
-        key = p11.get_key_handler(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica1", cka_wrap=True)
-        key_priv = p11.get_key_handler(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica1", cka_unwrap=True)
-        key2_priv = p11.get_key_handler(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica2", cka_unwrap=True)
-        key2 = p11.get_key_handler(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica2", cka_wrap=True)
+        p11.generate_replica_key_pair(u"replica2", "id2", pub_cka_wrap=True, priv_cka_unwrap=True)
+        key = p11.get_key_handle(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica1", cka_wrap=True)
+        key_priv = p11.get_key_handle(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica1", cka_unwrap=True)
+        key2_priv = p11.get_key_handle(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica2", cka_unwrap=True)
+        key2 = p11.get_key_handle(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica2", cka_wrap=True)
         print 'key handler', key
         try:
-            print 'key handler', p11.get_key_handler(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica666")
+            print 'key handler', p11.get_key_handle(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica666")
         except ipapkcs11.NotFound:
             print "OK: NotFound"
-        key3 = p11.get_key_handler(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest", id="m")
+        key3 = p11.get_key_handle(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest", id="m")
         print "Got key ", key3
-        key3_attrs = p11.export_secret_key(key3)
-        print "Export secret key: ", str_to_hex(key3_attrs["value"])
+        #key3_attrs = p11.export_secret_key(key3)
+        #print "Export secret key: ", str_to_hex(key3_attrs["value"])
         pub = p11.export_public_key(key)
         print "Public key", str_to_hex(pub)
         f = open("public_key.asn1.der", "wb")
@@ -76,7 +76,7 @@ if __name__ == '__main__':
         
         try:
             p11.generate_master_key(u"žžž-aest", "m-test", key_length=16)
-            p11.get_key_handler(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest")
+            p11.get_key_handle(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u"žžž-aest")
         except ipapkcs11.DuplicationError as e:
             print "OK: exception ", e
         except Exception as e:
