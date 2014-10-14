@@ -33,7 +33,7 @@ if __name__ == '__main__':
         f.write(pub)
         f.close()
         print 'imported', p11.import_public_key(u'test_import', '1245', pub, 
-                                                {ipapkcs11.CKA_WRAP: False})
+                                                cka_wrap=True)
 
         try:
             print "wrapping dnssec priv key by master key"

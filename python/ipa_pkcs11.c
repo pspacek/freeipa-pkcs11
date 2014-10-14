@@ -1088,14 +1088,15 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
  */
 static PyObject *
 IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_t label_length,
-		CK_BYTE *id, Py_ssize_t id_length, EVP_PKEY *pkey, PyObject *attr_dict)
+		CK_BYTE *id, Py_ssize_t id_length, EVP_PKEY *pkey, CK_BBOOL* cka_copyable,
+		CK_BBOOL* cka_derive, CK_BBOOL* cka_encrypt, CK_BBOOL*cka_local,
+		CK_BBOOL* cka_modifiable, CK_BBOOL* cka_private, CK_BBOOL* cka_trusted,
+		CK_BBOOL* cka_verify, CK_BBOOL* cka_verify_recover, CK_BBOOL* cka_wrap)
 {
     CK_RV rv;
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
     CK_KEY_TYPE keyType = CKK_RSA;
     CK_BBOOL *cka_token = &true;
-    CK_BBOOL *cka_wrap = &true;
-    CK_BBOOL *cka_encrypt = &true;
     RSA *rsa = NULL;
 	CK_BYTE_PTR modulus = NULL;
 	int modulus_len = 0;
@@ -1106,33 +1107,31 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
 	PyObject *value = NULL;
 	Py_ssize_t pos = 0;
 
+	CK_ATTRIBUTE template[] = {
+		{CKA_ID, id, id_length},
+		{CKA_CLASS, &class, sizeof(class)},
+		{CKA_KEY_TYPE, &keyType, sizeof(keyType)},
+		{CKA_TOKEN, cka_token, sizeof(CK_BBOOL)},
+		{CKA_LABEL, label, label_length},
+		{CKA_MODULUS, modulus, modulus_len},
+		{CKA_PUBLIC_EXPONENT, exponent, exponent_len},
+        //{CKA_COPYABLE, cka_copyable, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+        {CKA_DERIVE, cka_derive, sizeof(CK_BBOOL)},
+        {CKA_ENCRYPT, cka_encrypt, sizeof(CK_BBOOL)},
+        {CKA_LOCAL, cka_local, sizeof(CK_BBOOL)},
+        {CKA_MODIFIABLE, cka_modifiable, sizeof(CK_BBOOL)},
+        {CKA_PRIVATE, cka_private, sizeof(CK_BBOOL)},
+        {CKA_TRUSTED, cka_trusted, sizeof(CK_BBOOL)},
+        {CKA_VERIFY, cka_verify, sizeof(CK_BBOOL)},
+        {CKA_VERIFY_RECOVER, cka_verify_recover, sizeof(CK_BBOOL)},
+        {CKA_WRAP, cka_wrap, sizeof(CK_BBOOL)},
+		};
+
+    CK_OBJECT_HANDLE object;
+
 	if (pkey->type != EVP_PKEY_RSA){
 		PyErr_SetString(IPA_PKCS11Error, "Required RSA public key");
 		return NULL;
-	}
-
-	if (attr_dict != NULL){
-		while (PyDict_Next(attr_dict, &pos, &key, &value)){
-			if (!PyInt_Check(key)){
-				PyErr_SetString(IPA_PKCS11Error, "Use a numeric CKA_* constant for the key");
-				return NULL;
-			}
-			switch(PyInt_AsUnsignedLongMask(key)){
-			case CKA_TOKEN:
-				cka_token = PyObject_IsTrue(value) ? &true : &false;
-				break;
-			case CKA_WRAP:
-				cka_wrap = PyObject_IsTrue(value) ? &true : &false;
-				break;
-			case CKA_ENCRYPT:
-				cka_encrypt = PyObject_IsTrue(value) ? &true : &false;
-				break;
-			default:
-				PyErr_SetString(IPA_PKCS11Error, "Unknown/unsupported attribute");
-				return NULL;
-			}
-			//TODO more attributes????
-		}
 	}
 
     rsa = EVP_PKEY_get1_RSA(pkey);
@@ -1159,19 +1158,6 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
     	return NULL;
     }
 
-	CK_ATTRIBUTE template[] = {
-		{CKA_ID, id, id_length},
-		{CKA_CLASS, &class, sizeof(class)},
-		{CKA_KEY_TYPE, &keyType, sizeof(keyType)},
-		{CKA_TOKEN, cka_token, sizeof(CK_BBOOL)},
-		{CKA_LABEL, label, label_length},
-		{CKA_WRAP, cka_wrap, sizeof(CK_BBOOL)},
-		{CKA_ENCRYPT, cka_encrypt, sizeof(CK_BBOOL)},
-		{CKA_MODULUS, modulus, modulus_len},
-		{CKA_PUBLIC_EXPONENT, exponent, exponent_len}
-		};
-    CK_OBJECT_HANDLE object;
-
     rv = self->p11->C_CreateObject(self->session, template,
     		sizeof(template)/sizeof(CK_ATTRIBUTE), &object);
     if(!check_return_value(rv, "create public key object"))
@@ -1190,7 +1176,7 @@ static PyObject *
 IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	int r;
 	PyObject *ret = NULL;
-	PyObject *labelUnicode = NULL;
+	PyObject *label_unicode = NULL;
 	PyObject *attrs = NULL;
     CK_BYTE *id = NULL;
     CK_BYTE *data = NULL;
@@ -1200,20 +1186,63 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     Py_ssize_t label_length = 0;
     EVP_PKEY *pkey = NULL;
 
-    static char *kwlist[] = {"label", "id", "data", "attrs" , NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#|O", kwlist, &labelUnicode, &id, &id_length,
-		&data, &data_length, &attrs)){
-		return NULL;
-	}
-	Py_XINCREF(labelUnicode);
-	label = (unsigned char*) unicode_to_char_array(labelUnicode, &label_length); //TODO verify signed/unsigned
-	Py_XDECREF(labelUnicode);
+    /*
+     * Default key values (public key)
+     */
+    CK_BBOOL* cka_copyable = &true;
+    CK_BBOOL* cka_derive = &false;
+    CK_BBOOL* cka_encrypt = &false;
+    CK_BBOOL* cka_local = &true;
+    CK_BBOOL* cka_modifiable = &true;
+    CK_BBOOL* cka_private = &true;
+    CK_BBOOL* cka_trusted = &false;
+    CK_BBOOL* cka_verify = &true;
+    CK_BBOOL* cka_verify_recover = &true;
+    CK_BBOOL* cka_wrap = &false;
 
-	/* check if attrs are in dict */
-	if(attrs != NULL && !PyDict_Check(attrs)){
-		PyErr_SetString(IPA_PKCS11Error, "attrs: required dictionary object");
+    /* Py objects (public_key) */
+    PyObject* cka_copyable_obj = NULL;
+    PyObject* cka_derive_obj = NULL;
+    PyObject* cka_encrypt_obj = NULL;
+    PyObject* cka_local_obj = NULL;
+    PyObject* cka_modifiable_obj = NULL;
+    PyObject* cka_private_obj = NULL;
+    PyObject* cka_trusted_obj = NULL;
+    PyObject* cka_verify_obj = NULL;
+    PyObject* cka_verify_recover_obj = NULL;
+    PyObject* cka_wrap_obj = NULL;
+
+
+    PyObj2Bool_mapping_t boolean_values_mapping[] = {
+        {cka_copyable_obj, cka_copyable},
+        {cka_derive_obj, cka_derive},
+        {cka_encrypt_obj, cka_encrypt},
+        {cka_local_obj, cka_local},
+        {cka_modifiable_obj, cka_modifiable},
+        {cka_private_obj, cka_private},
+        {cka_trusted_obj, cka_trusted},
+        {cka_verify_obj, cka_verify},
+        {cka_verify_recover_obj, cka_verify_recover},
+        {cka_wrap_obj, cka_wrap},
+    };
+
+    static char *kwlist[] = {"label", "id", "data",
+    		/* public key attributes */
+    		"cka_copyable", "cka_derive", "cka_encrypt", "cka_local",
+    		"cka_modifiable", "cka_private", "cka_trusted", "cka_verify",
+    		"cka_verify_recover", "cka_wrap" , NULL };
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#|0000000000", kwlist,
+			&label_unicode, &id, &id_length, &data, &data_length,
+			/* public key attributes */
+			&cka_copyable_obj, &cka_derive_obj, &cka_encrypt_obj, &cka_local_obj,
+			&cka_modifiable_obj, &cka_private_obj, &cka_trusted_obj, &cka_verify_obj,
+			&cka_verify_recover_obj, &cka_wrap_obj)){
 		return NULL;
 	}
+	Py_XINCREF(label_unicode);
+	label = (unsigned char*) unicode_to_char_array(label_unicode, &label_length);
+	Py_XDECREF(label_unicode);
+
 
     r = _id_label_exists(self, id, id_length, label, label_length, CKO_PUBLIC_KEY);
     if (r == 1){
@@ -1222,6 +1251,15 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     	return NULL;
     } else if (r == -1){
     	return NULL;
+    }
+
+    /* Process keyword boolean arguments */
+    for(int i=0; i < sizeof(boolean_values_mapping)/sizeof(PyObj2Bool_mapping_t); ++i){
+    	if(boolean_values_mapping[i].py_obj != NULL){
+    		Py_INCREF(boolean_values_mapping[i].py_obj);
+    		boolean_values_mapping[i].bool = pyobj_to_bool(boolean_values_mapping[i].py_obj);
+    		Py_DECREF(boolean_values_mapping[i].py_obj);
+    	}
     }
 
 	/* decode from ASN1 DER */
@@ -1233,7 +1271,9 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	switch(pkey->type){
 	case EVP_PKEY_RSA:
 		ret = IPA_PKCS11_import_RSA_public_key(self, label, label_length,
-			id, id_length, pkey, attrs);
+			id, id_length, pkey, cka_copyable, cka_derive, cka_encrypt,
+			cka_local, cka_modifiable, cka_private, cka_trusted, cka_verify,
+    		cka_verify_recover, cka_wrap);
 		break;
 	case EVP_PKEY_DSA:
 		ret = NULL;
