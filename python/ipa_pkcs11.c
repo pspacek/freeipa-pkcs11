@@ -1408,7 +1408,7 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	case EVP_PKEY_RSA:
 		ret = IPA_PKCS11_import_RSA_public_key(self, label, label_length,
 			id, id_length, pkey, cka_copyable, cka_derive, cka_encrypt,
-			cka_local, cka_modifiable, cka_private, cka_trusted, cka_verify,
+			cka_modifiable, cka_private, cka_trusted, cka_verify,
     		cka_verify_recover, cka_wrap);
 		break;
 	case EVP_PKEY_DSA:
