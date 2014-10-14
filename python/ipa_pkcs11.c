@@ -565,10 +565,10 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
         {NULL, &false}, //sec_en_cka_decrypt
         {NULL, &false}, //sec_en_cka_derive
         {NULL, &false}, //sec_en_cka_encrypt
-        {NULL, &false}, //sec_en_cka_extractable
+        {NULL, &true}, //sec_en_cka_extractable
         {NULL, &true}, //sec_en_cka_modifiable
         {NULL, &true}, //sec_en_cka_private
-        {NULL, &false}, //sec_en_cka_sensitive
+        {NULL, &true}, //sec_en_cka_sensitive
         {NULL, &false}, //sec_en_cka_sign
         {NULL, &true}, //sec_en_cka_unwrap
         {NULL, &false}, //sec_en_cka_verify
@@ -690,9 +690,9 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
         {NULL, &true}, //pub_en_cka_modifiable
         {NULL, &true}, //pub_en_cka_private
         {NULL, &false}, //pub_en_cka_trusted
-        {NULL, &true}, //pub_en_cka_verify
-        {NULL, &true}, //pub_en_cka_verify_recover
-        {NULL, &false}, //pub_en_cka_wrap
+        {NULL, &false}, //pub_en_cka_verify
+        {NULL, &false}, //pub_en_cka_verify_recover
+        {NULL, &true}, //pub_en_cka_wrap
     };
 
     PyObj2Bool_mapping_t attrs_priv[] = {
@@ -700,13 +700,13 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
         {NULL, &true}, //priv_en_cka_copyable
         {NULL, &false}, //priv_en_cka_decrypt
         {NULL, &false}, //priv_en_cka_derive
-        {NULL, &true}, //priv_en_cka_extractable
+        {NULL, &false}, //priv_en_cka_extractable
         {NULL, &true}, //priv_en_cka_modifiable
         {NULL, &true}, //priv_en_cka_private
         {NULL, &true}, //priv_en_cka_sensitive
-        {NULL, &true}, //priv_en_cka_sign
-        {NULL, &true}, //priv_en_cka_sign_recover
-        {NULL, &false}, //priv_en_cka_unwrap
+        {NULL, &false}, //priv_en_cka_sign
+        {NULL, &false}, //priv_en_cka_sign_recover
+        {NULL, &true}, //priv_en_cka_unwrap
         {NULL, &false} //priv_en_cka_wrap_with_trusted
     };
 
@@ -1444,10 +1444,10 @@ IPA_PKCS11_import_wrapped_secret_key(IPA_PKCS11* self, PyObject *args, PyObject 
         {NULL, &false}, //sec_en_cka_decrypt
         {NULL, &false}, //sec_en_cka_derive
         {NULL, &false}, //sec_en_cka_encrypt
-        {NULL, &false}, //sec_en_cka_extractable
+        {NULL, &true}, //sec_en_cka_extractable
         {NULL, &true}, //sec_en_cka_modifiable
         {NULL, &true}, //sec_en_cka_private
-        {NULL, &false}, //sec_en_cka_sensitive
+        {NULL, &true}, //sec_en_cka_sensitive
         {NULL, &false}, //sec_en_cka_sign
         {NULL, &true}, //sec_en_cka_unwrap
         {NULL, &false}, //sec_en_cka_verify
