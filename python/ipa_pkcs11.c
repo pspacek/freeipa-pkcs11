@@ -1371,7 +1371,7 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
     		"cka_copyable", "cka_derive", "cka_encrypt", "cka_local",
     		"cka_modifiable", "cka_private", "cka_trusted", "cka_verify",
     		"cka_verify_recover", "cka_wrap" , NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#|0000000000", kwlist,
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#|OOOOOOOOOO", kwlist,
 			&label_unicode, &id, &id_length, &data, &data_length,
 			/* public key attributes */
 			&cka_copyable_obj, &cka_derive_obj, &cka_encrypt_obj, &cka_local_obj,
@@ -1553,7 +1553,7 @@ IPA_PKCS11_import_wrapped_secret_key(IPA_PKCS11* self, PyObject *args, PyObject 
 			"cka_decrypt", "cka_derive", "cka_encrypt", "cka_extractable",
 			"cka_modifiable", "cka_private", "cka_sensitive", "cka_sign",
 			"cka_unwrap", "cka_verify", "cka_wrap", "cka_wrap_with_trusted", NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|0000000000000",
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|OOOOOOOOOOOOO",
 			kwlist, &label_unicode, &id, &id_length,
 			&wrapped_key, &wrapped_key_len, &unwrapping_key_object,
 			&wrapping_mech.mechanism, &key_type,
@@ -1642,7 +1642,7 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
 	CK_KEY_TYPE key_type = CKK_RSA;
 
     /*
-     * Default key values (secret key)
+     * Default key values (private key)
      */
 	CK_BBOOL* cka_always_authenticate = &false;
 	CK_BBOOL* cka_always_sensitive = &true;
@@ -1661,7 +1661,7 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
     CK_BBOOL* cka_unwrap = &false;
     CK_BBOOL* cka_wrap_with_trusted = &false;
 
-    /* Py objects (secret_key) */
+    /* Py objects (private_key) */
     PyObject* cka_always_authenticate_obj = NULL;
     PyObject* cka_always_sensitive_obj = NULL;
     PyObject* cka_copyable_obj = NULL;
@@ -1685,7 +1685,6 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
         {cka_copyable_obj, cka_copyable},
         {cka_decrypt_obj, cka_decrypt},
         {cka_derive_obj, cka_derive},
-
         {cka_extractable_obj, cka_extractable},
         {cka_local_obj, cka_local},
         {cka_modifiable_obj, cka_modifiable},
@@ -1706,7 +1705,7 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
 			"cka_modifiable"
 			"cka_never_extractable", "cka_private", "cka_sensitive", "cka_sign",
 			"cka_sign_recover", "cka_unwrap", "cka_wrap_with_trusted", NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|000000000000000",
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Us#s#kkkk|OOOOOOOOOOOOOOO",
 			kwlist, &label_unicode, &id, &id_length,
 			&wrapped_key, &wrapped_key_len, &unwrapping_key_object,
 			&wrapping_mech.mechanism, &key_type,
