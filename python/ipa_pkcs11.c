@@ -331,49 +331,47 @@ _find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
  */
 int
 _get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
-		CK_BYTE_PTR label, CK_ULONG label_len,
-		CK_OBJECT_CLASS class, CK_BBOOL *cka_wrap,
-		CK_BBOOL *cka_unwrap, CK_OBJECT_HANDLE *object)
+        CK_BYTE_PTR label, CK_ULONG label_len,
+        CK_OBJECT_CLASS class, CK_BBOOL *cka_wrap,
+        CK_BBOOL *cka_unwrap, CK_OBJECT_HANDLE *object)
 {
-	/* specify max number of possible attributes, increase this number whenever
-	 * new attribute is added and don't forget to increase attr_count with each
-	 * set attribute
-	 */
-	unsigned int max_possible_attributes = 5;
-	CK_ATTRIBUTE template[max_possible_attributes];
-	CK_OBJECT_HANDLE* result_objects = NULL;
-	unsigned int objects_count = 0;
-	unsigned int attr_count = 0;
-	unsigned int not_found_err = 0;
-	unsigned int duplication_err = 0;
-	int r;
-    CK_RV rv;
+    /* specify max number of possible attributes, increase this number whenever
+     * new attribute is added and don't forget to increase attr_count with each
+     * set attribute
+     */
+    CK_OBJECT_HANDLE* result_objects = NULL;
+    unsigned int objects_count = 0;
+    unsigned int not_found_err = 0;
+    unsigned int duplication_err = 0;
+    int r;
 
     if((label==NULL) && (id==NULL)){
-    	PyErr_SetString(IPA_PKCS11Error, "Key 'id' or 'label' required.");
-    	return 0;
+        PyErr_SetString(IPA_PKCS11Error, "Key 'id' or 'label' required.");
+        return 0;
     }
 
     r = _find_key(self, id, id_len, label, label_len, class, cka_wrap,
-    		cka_unwrap, &result_objects, &objects_count);
+            cka_unwrap, &result_objects, &objects_count);
+
+    if (!r) return 0;
 
     not_found_err = (objects_count == 0) ? 1 : 0;
     duplication_err = (objects_count > 1) ? 1 : 0;
 
     if(!(not_found_err || duplication_err))
-    	*object = result_objects[0];
+        *object = result_objects[0];
 
     if(result_objects != NULL)
-    	free(result_objects);
+        free(result_objects);
 
     if (not_found_err) {
-    	PyErr_SetString(IPA_PKCS11NotFound, "Key not found");
-    	return 0;
+        PyErr_SetString(IPA_PKCS11NotFound, "Key not found");
+        return 0;
     }
 
     if (duplication_err) {
-    	PyErr_SetString(IPA_PKCS11DuplicationError, "_get_key: more than 1 key found");
-    	return 0;
+        PyErr_SetString(IPA_PKCS11DuplicationError, "_get_key: more than 1 key found");
+        return 0;
     }
 
     return 1;
@@ -849,21 +847,20 @@ IPA_PKCS11_get_key_handle(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
     CK_BYTE *id = NULL;
-    CK_BBOOL *ckawrap = NULL;
-    CK_BBOOL *ckaunwrap = NULL;
+    CK_BBOOL *cka_wrap = NULL;
+    CK_BBOOL *cka_unwrap = NULL;
     int id_length = 0;
-    CK_ULONG key_length = 16;
     PyObject *label_unicode = NULL;
-    PyObject *cka_wrap_bool = NULL;
-    PyObject *cka_unwrap_bool = NULL;
+    PyObject *cka_wrap_obj = NULL;
+    PyObject *cka_unwrap_obj = NULL;
     Py_ssize_t label_length = 0;
-	static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
-	//TODO check long overflow
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#OO", kwlist,
-			 &class, &label_unicode, &id, &id_length,
-			 &cka_wrap_bool, &cka_unwrap_bool)){
-		return NULL;
-	}
+    static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#OO", kwlist,
+            &class, &label_unicode, &id, &id_length,
+            &cka_wrap_obj, &cka_unwrap_obj)){
+        return NULL;
+    }
 
 	CK_BYTE *label = NULL;
 	if (label_unicode != NULL){
@@ -872,29 +869,29 @@ IPA_PKCS11_get_key_handle(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 		Py_DECREF(label_unicode);
 	}
 
-	if(cka_wrap_bool!=NULL){
-		Py_INCREF(cka_wrap_bool);
-		if (PyObject_IsTrue(cka_wrap_bool)){
-			ckawrap = &true;
+	if(cka_wrap_obj!=NULL){
+		Py_INCREF(cka_wrap_obj);
+		if (PyObject_IsTrue(cka_wrap_obj)){
+			cka_wrap = &true;
 		} else {
-			ckawrap = &false;
+			cka_wrap = &false;
 		}
-		Py_DECREF(cka_wrap_bool);
+		Py_DECREF(cka_wrap_obj);
 	}
 
-	if(cka_unwrap_bool!=NULL){
-		Py_INCREF(cka_unwrap_bool);
-		if (PyObject_IsTrue(cka_unwrap_bool)){
-			ckaunwrap = &true;
+	if(cka_unwrap_obj!=NULL){
+		Py_INCREF(cka_unwrap_obj);
+		if (PyObject_IsTrue(cka_unwrap_obj)){
+			cka_unwrap = &true;
 		} else {
-			ckaunwrap = &false;
+			cka_unwrap = &false;
 		}
-		Py_DECREF(cka_unwrap_bool);
+		Py_DECREF(cka_unwrap_obj);
 	}
 
 	CK_OBJECT_HANDLE object = 0;
-	if(! _get_key(self, id, id_length, label, label_length, class, ckawrap,
-			ckaunwrap, &object))
+	if(! _get_key(self, id, id_length, label, label_length, class, cka_wrap,
+			cka_unwrap, &object))
 		return NULL;
 
 	return Py_BuildValue("k",object);
@@ -915,13 +912,12 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_BBOOL *ckawrap = NULL;
     CK_BBOOL *ckaunwrap = NULL;
     int id_length = 0;
-    CK_ULONG key_length = 16;
     PyObject *label_unicode = NULL;
     PyObject *cka_wrap_bool = NULL;
     PyObject *cka_unwrap_bool = NULL;
     Py_ssize_t label_length = 0;
     CK_OBJECT_HANDLE *objects = NULL;
-    int objects_len = 0;
+    unsigned int objects_len = 0;
     PyObject *result_list = NULL;
 	CK_BYTE *label = NULL; //TODO free
 
@@ -1215,10 +1211,6 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
 	CK_BYTE_PTR exponent = NULL;
 	int exponent_len = 0;
 
-	PyObject *key = NULL;
-	PyObject *value = NULL;
-	Py_ssize_t pos = 0;
-
 	CK_ATTRIBUTE template[] = {
 		{CKA_ID, id, id_length},
 		{CKA_CLASS, &class, sizeof(class)},
@@ -1284,10 +1276,9 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
  */
 static PyObject *
 IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
-	int r;
-	PyObject *ret = NULL;
-	PyObject *label_unicode = NULL;
-	PyObject *attrs = NULL;
+    int r;
+    PyObject *ret = NULL;
+    PyObject *label_unicode = NULL;
     CK_BYTE *id = NULL;
     CK_BYTE *data = NULL;
     CK_UTF8CHAR *label = NULL;
@@ -1703,7 +1694,7 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 			goto final;
 		}
 		if (PyString_AsStringAndSize(value,
-				&attribute.pValue, &attribute.ulValueLen) == -1){
+				(char **) &attribute.pValue, &attribute.ulValueLen) == -1){
 			ret = NULL;
 			goto final;
 		}
@@ -1773,7 +1764,7 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 
 	rv = self->p11->C_GetAttributeValue(self->session, object, template, 1);
 	// attribute doesn't exists
-	if (rv == CKR_ATTRIBUTE_TYPE_INVALID || template[0].ulValueLen == -1){
+	if (rv == CKR_ATTRIBUTE_TYPE_INVALID || template[0].ulValueLen == (unsigned long) -1){
 		PyErr_SetString(IPA_PKCS11NotFound, "attribute does not exist");
 		ret = NULL;
 		goto final;
