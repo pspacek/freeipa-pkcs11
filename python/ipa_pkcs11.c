@@ -45,6 +45,8 @@
 CK_BBOOL true = CK_TRUE;
 CK_BBOOL false = CK_FALSE;
 
+#define MAX_TEMPLATE_LEN 32
+
 /**
  * IPA_PKCS11 type
  */
@@ -190,6 +192,64 @@ int check_return_value(CK_RV rv, const char *message) {
 	return 1;
 }
 
+/**
+ * Fill template structure with pointers to attributes passed as independent
+ * variables.
+ * Variables with NULL values will be omitted from template.
+ *
+ * @warning input variables should not be modified when template is in use
+ */
+void _fill_template_from_parts(CK_ATTRIBUTE_PTR attr, CK_ULONG_PTR template_len,
+		CK_BYTE_PTR id, CK_ULONG id_len,
+		CK_BYTE_PTR label, CK_ULONG label_len,
+		CK_OBJECT_CLASS *class, CK_BBOOL *cka_wrap,
+		CK_BBOOL *cka_unwrap)
+{
+	int cnt = 0;
+	if (label!=NULL){
+		attr->type = CKA_LABEL;
+		attr->pValue = (void *) label;
+		attr->ulValueLen = label_len;
+		++attr;
+		++cnt;
+		assert(cnt < *template_len);
+	}
+	if (id!=NULL){
+		attr->type = CKA_ID;
+		attr->pValue = (void *) id;
+		attr->ulValueLen = id_len;
+		++attr;
+		++cnt;
+		assert(cnt < *template_len);
+	}
+	if (cka_wrap!=NULL){
+		attr->type = CKA_WRAP;
+		attr->pValue = (void *) cka_wrap;
+		attr->ulValueLen = sizeof(CK_BBOOL);
+		++attr;
+		++cnt;
+		assert(cnt < *template_len);
+	}
+	if (cka_unwrap!=NULL){
+		attr->type = CKA_UNWRAP;
+		attr->pValue = (void *) cka_unwrap;
+		attr->ulValueLen = sizeof(CK_BBOOL);
+		++attr;
+		++cnt;
+		assert(cnt < *template_len);
+	}
+
+	if (class!=NULL){
+		attr->type = CKA_CLASS;
+		attr->pValue = (void *) class;
+		attr->ulValueLen = sizeof(CK_OBJECT_CLASS);
+		++attr;
+		++cnt;
+		assert(cnt < *template_len);
+	}
+	*template_len = cnt;
+}
+
 /*
  * Find keys with specified attributes ('id' or 'label' and 'class' are required)
  *
@@ -204,74 +264,26 @@ int check_return_value(CK_RV rv, const char *message) {
  * :param class key: class
  * :param cka_wrap:  (if value is NULL, will not be used to find key)
  * :param cka_unwrap: (if value is NULL, will not be used to find key)
+ * :param uri: PKCS#11 URI to build attribute template
  * :param objects: found objects, NULL if no objects fit criteria
  * :param objects_count: number of objects in objects array
  * :return: 1 if success, otherwise return 0 and set the exception
  */
 int
-_find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
-		CK_BYTE_PTR label, CK_ULONG label_len,
-		CK_OBJECT_CLASS *class, CK_BBOOL *cka_wrap,
-		CK_BBOOL *cka_unwrap, CK_OBJECT_HANDLE **objects,
-		unsigned int *objects_count)
+_find_key(IPA_PKCS11* self, CK_ATTRIBUTE_PTR template, CK_ULONG template_len,
+	  CK_OBJECT_HANDLE **objects, unsigned int *objects_count)
 {
-	/* specify max number of possible attributes, increase this number whenever
-	 * new attribute is added and don't forget to increase attr_count with each
-	 * set attribute
-	 */
-	unsigned int max_possible_attributes = 32;
-	CK_ATTRIBUTE template[max_possible_attributes];
 	CK_OBJECT_HANDLE result_object;
-    CK_ULONG objectCount;
+	CK_ULONG objectCount;
 	CK_OBJECT_HANDLE *result_objects = NULL;
 	CK_OBJECT_HANDLE *tmp_objects_ptr = NULL;
-	unsigned int attr_count = 0;
 	unsigned int count = 0;
 	unsigned int allocated = 0;
-    CK_RV rv;
+	CK_RV rv;
 
-    if (label!=NULL){
-    	template[attr_count].type = CKA_LABEL;
-    	template[attr_count].pValue = (void *) label;
-    	template[attr_count].ulValueLen = label_len;
-    	++attr_count;
-    	assert(attr_count < max_possible_attributes);
-    }
-    if (id!=NULL){
-    	template[attr_count].type = CKA_ID;
-    	template[attr_count].pValue = (void *) id;
-    	template[attr_count].ulValueLen = id_len;
-    	++attr_count;
-    	assert(attr_count < max_possible_attributes);
-    }
-    if (cka_wrap!=NULL){
-    	template[attr_count].type = CKA_WRAP;
-    	template[attr_count].pValue = (void *) cka_wrap;
-    	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
-    	++attr_count;
-    	assert(attr_count < max_possible_attributes);
-    }
-    if (cka_unwrap!=NULL){
-    	template[attr_count].type = CKA_UNWRAP;
-    	template[attr_count].pValue = (void *) cka_unwrap;
-    	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
-    	++attr_count;
-    	assert(attr_count < max_possible_attributes);
-    }
-
-    /* Set CLASS */
-    if (class!=NULL){
-	template[attr_count].type = CKA_CLASS;
-	template[attr_count].pValue = (void *) class;
-	template[attr_count].ulValueLen = sizeof(CK_OBJECT_CLASS);
-	++attr_count;
-	assert(attr_count < max_possible_attributes);
-    }
-
-    rv = self->p11->C_FindObjectsInit(self->session, template, attr_count);
+    rv = self->p11->C_FindObjectsInit(self->session, template, template_len);
     if(!check_return_value(rv, "Find key init"))
     	return 0;
-
 
     rv = self->p11->C_FindObjects(self->session, &result_object, 1, &objectCount);
     if(!check_return_value(rv, "Find key"))
@@ -777,9 +789,6 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
 
 /**
  * Find key
- *
- * Default class: public_key
- *
  */
 static PyObject *
 IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
@@ -797,13 +806,17 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_OBJECT_HANDLE *objects = NULL;
     unsigned int objects_len = 0;
     PyObject *result_list = NULL;
-	CK_BYTE *label = NULL; //TODO free
+    const char *uri = NULL; //TODO free
+    CK_BYTE *label = NULL; //TODO free
+    CK_ATTRIBUTE template[MAX_TEMPLATE_LEN];
+    CK_ULONG template_len = MAX_TEMPLATE_LEN;
 
-	static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
+	static char *kwlist[] = {"class", "label", "id", "cka_wrap",
+			"cka_unwrap", "uri", NULL };
 	//TODO check long overflow
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iUz#OO", kwlist,
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iUz#OOs", kwlist,
 			 &class, &label_unicode, &id, &id_length,
-			 &cka_wrap_bool, &cka_unwrap_bool)){
+			 &cka_wrap_bool, &cka_unwrap_bool, &uri)){
 		return NULL;
 	}
 
@@ -835,8 +848,11 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 
 	if (class == CKO_VENDOR_DEFINED)
 		class_ptr = NULL;
-	if(! _find_key(self, id, id_length, label, label_length, class_ptr, ckawrap,
-			ckaunwrap, &objects, &objects_len))
+
+	_fill_template_from_parts(template, &template_len, id, id_length, label, label_length, class_ptr, ckawrap,
+			ckaunwrap);
+
+	if(! _find_key(self, template, template_len, &objects, &objects_len))
 		return NULL;
 
 	result_list = PyList_New(objects_len);
