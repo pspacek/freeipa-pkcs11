@@ -15,7 +15,7 @@ if __name__ == '__main__':
         p11.generate_replica_key_pair(u"replica1", "id1", pub_cka_wrap=True,
                                       priv_cka_unwrap=True)
         #sys.exit(0)
-        p11.generate_master_key(u"žžž-aest", "m", key_length=16)
+        p11.generate_master_key(u"žžž-aest", "m", key_length=16, cka_wrap=True, cka_unwrap=True)
         p11.generate_replica_key_pair(u"replica2", "id2", pub_cka_wrap=True, priv_cka_unwrap=True)
         key = p11.get_key_handle(ipapkcs11.KEY_CLASS_PUBLIC_KEY, label=u"replica1", cka_wrap=True)
         key_priv = p11.get_key_handle(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica1", cka_unwrap=True)
