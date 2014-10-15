@@ -251,20 +251,10 @@ void _fill_template_from_parts(CK_ATTRIBUTE_PTR attr, CK_ULONG_PTR template_len,
 }
 
 /*
- * Find keys with specified attributes ('id' or 'label' and 'class' are required)
+ * Find keys matching specified template.
+ * Function returns list of key handles via objects parameter.
  *
- *
- * Function return only one key, if more keys meet the search parameters,
- * exception will be raised
- *
- * :param id: key ID, (if value is NULL, will not be used to find key)
- * :param id_len: key ID length
- * :param label key: label (if value is NULL, will not be used to find key)
- * :param label_len: key label length
- * :param class key: class
- * :param cka_wrap:  (if value is NULL, will not be used to find key)
- * :param cka_unwrap: (if value is NULL, will not be used to find key)
- * :param uri: PKCS#11 URI to build attribute template
+ * :param template: PKCS#11 template for attribute matching
  * :param objects: found objects, NULL if no objects fit criteria
  * :param objects_count: number of objects in objects array
  * :return: 1 if success, otherwise return 0 and set the exception
