@@ -211,7 +211,7 @@ int check_return_value(CK_RV rv, const char *message) {
 int
 _find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
 		CK_BYTE_PTR label, CK_ULONG label_len,
-		CK_OBJECT_CLASS class, CK_BBOOL *cka_wrap,
+		CK_OBJECT_CLASS *class, CK_BBOOL *cka_wrap,
 		CK_BBOOL *cka_unwrap, CK_OBJECT_HANDLE **objects,
 		unsigned int *objects_count)
 {
@@ -219,7 +219,7 @@ _find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
 	 * new attribute is added and don't forget to increase attr_count with each
 	 * set attribute
 	 */
-	unsigned int max_possible_attributes = 5;
+	unsigned int max_possible_attributes = 32;
 	CK_ATTRIBUTE template[max_possible_attributes];
 	CK_OBJECT_HANDLE result_object;
     CK_ULONG objectCount;
@@ -235,32 +235,38 @@ _find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
     	template[attr_count].pValue = (void *) label;
     	template[attr_count].ulValueLen = label_len;
     	++attr_count;
+    	assert(attr_count < max_possible_attributes);
     }
     if (id!=NULL){
     	template[attr_count].type = CKA_ID;
     	template[attr_count].pValue = (void *) id;
     	template[attr_count].ulValueLen = id_len;
     	++attr_count;
+    	assert(attr_count < max_possible_attributes);
     }
     if (cka_wrap!=NULL){
     	template[attr_count].type = CKA_WRAP;
     	template[attr_count].pValue = (void *) cka_wrap;
     	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
     	++attr_count;
+    	assert(attr_count < max_possible_attributes);
     }
     if (cka_unwrap!=NULL){
     	template[attr_count].type = CKA_UNWRAP;
     	template[attr_count].pValue = (void *) cka_unwrap;
     	template[attr_count].ulValueLen = sizeof(CK_BBOOL);
     	++attr_count;
+    	assert(attr_count < max_possible_attributes);
     }
 
     /* Set CLASS */
+    if (class!=NULL){
 	template[attr_count].type = CKA_CLASS;
-	template[attr_count].pValue = (void *) &class;
+	template[attr_count].pValue = (void *) class;
 	template[attr_count].ulValueLen = sizeof(CK_OBJECT_CLASS);
 	++attr_count;
-
+	assert(attr_count < max_possible_attributes);
+    }
 
     rv = self->p11->C_FindObjectsInit(self->session, template, attr_count);
     if(!check_return_value(rv, "Find key init"))
@@ -305,75 +311,6 @@ _find_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
 
     *objects = result_objects;
     *objects_count = count;
-    return 1;
-}
-
-/*
- * Find key with specified attributes ('id' or 'label' and 'class' are required)
- *
- * id or label and class must be specified
- *
- * Function return only one key, if more keys meet the search parameters,
- * exception will be raised
- *
- * :param id: key ID, (if value is NULL, will not be used to find key)
- * :param id_len: key ID length
- * :param label key: label (if value is NULL, will not be used to find key)
- * :param label_len: key label length
- * :param class key: class
- * :param cka_wrap:  (if value is NULL, will not be used to find key)
- * :param cka_unwrap: (if value is NULL, will not be used to find key)
- * :param object:
- * :return: 1 if object was found, otherwise return 0 and set the exception
- *
- * :raise IPA_PKCS11NotFound: if no result is returned
- * :raise IPA_PKCS11DuplicationError: if more then 1 key meet the parameters
- */
-int
-_get_key(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
-        CK_BYTE_PTR label, CK_ULONG label_len,
-        CK_OBJECT_CLASS class, CK_BBOOL *cka_wrap,
-        CK_BBOOL *cka_unwrap, CK_OBJECT_HANDLE *object)
-{
-    /* specify max number of possible attributes, increase this number whenever
-     * new attribute is added and don't forget to increase attr_count with each
-     * set attribute
-     */
-    CK_OBJECT_HANDLE* result_objects = NULL;
-    unsigned int objects_count = 0;
-    unsigned int not_found_err = 0;
-    unsigned int duplication_err = 0;
-    int r;
-
-    if((label==NULL) && (id==NULL)){
-        PyErr_SetString(IPA_PKCS11Error, "Key 'id' or 'label' required.");
-        return 0;
-    }
-
-    r = _find_key(self, id, id_len, label, label_len, class, cka_wrap,
-            cka_unwrap, &result_objects, &objects_count);
-
-    if (!r) return 0;
-
-    not_found_err = (objects_count == 0) ? 1 : 0;
-    duplication_err = (objects_count > 1) ? 1 : 0;
-
-    if(!(not_found_err || duplication_err))
-        *object = result_objects[0];
-
-    if(result_objects != NULL)
-        free(result_objects);
-
-    if (not_found_err) {
-        PyErr_SetString(IPA_PKCS11NotFound, "Key not found");
-        return 0;
-    }
-
-    if (duplication_err) {
-        PyErr_SetString(IPA_PKCS11DuplicationError, "_get_key: more than 1 key found");
-        return 0;
-    }
-
     return 1;
 }
 
@@ -839,68 +776,6 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
 }
 
 /**
- * Get key
- *
- * Default class: public_key
- *
- */
-static PyObject *
-IPA_PKCS11_get_key_handle(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
-{
-    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
-    CK_BYTE *id = NULL;
-    CK_BBOOL *cka_wrap = NULL;
-    CK_BBOOL *cka_unwrap = NULL;
-    int id_length = 0;
-    PyObject *label_unicode = NULL;
-    PyObject *cka_wrap_obj = NULL;
-    PyObject *cka_unwrap_obj = NULL;
-    Py_ssize_t label_length = 0;
-    static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#OO", kwlist,
-            &class, &label_unicode, &id, &id_length,
-            &cka_wrap_obj, &cka_unwrap_obj)){
-        return NULL;
-    }
-
-	CK_BYTE *label = NULL;
-	if (label_unicode != NULL){
-		Py_INCREF(label_unicode);
-		label = (unsigned char*) unicode_to_char_array(label_unicode, &label_length); //TODO verify signed/unsigned
-		Py_DECREF(label_unicode);
-	}
-
-	if(cka_wrap_obj!=NULL){
-		Py_INCREF(cka_wrap_obj);
-		if (PyObject_IsTrue(cka_wrap_obj)){
-			cka_wrap = &true;
-		} else {
-			cka_wrap = &false;
-		}
-		Py_DECREF(cka_wrap_obj);
-	}
-
-	if(cka_unwrap_obj!=NULL){
-		Py_INCREF(cka_unwrap_obj);
-		if (PyObject_IsTrue(cka_unwrap_obj)){
-			cka_unwrap = &true;
-		} else {
-			cka_unwrap = &false;
-		}
-		Py_DECREF(cka_unwrap_obj);
-	}
-
-	CK_OBJECT_HANDLE object = 0;
-	if(! _get_key(self, id, id_length, label, label_length, class, cka_wrap,
-			cka_unwrap, &object))
-		return NULL;
-
-	return Py_BuildValue("k",object);
-}
-
-
-/**
  * Find key
  *
  * Default class: public_key
@@ -909,7 +784,8 @@ IPA_PKCS11_get_key_handle(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 static PyObject *
 IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 {
-    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
+    CK_OBJECT_CLASS class = CKO_VENDOR_DEFINED;
+    CK_OBJECT_CLASS *class_ptr = &class;
     CK_BYTE *id = NULL; //TODO free
     CK_BBOOL *ckawrap = NULL;
     CK_BBOOL *ckaunwrap = NULL;
@@ -925,7 +801,7 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 
 	static char *kwlist[] = {"class", "label", "id", "cka_wrap", "cka_unwrap", NULL };
 	//TODO check long overflow
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|Uz#OO", kwlist,
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iUz#OO", kwlist,
 			 &class, &label_unicode, &id, &id_length,
 			 &cka_wrap_bool, &cka_unwrap_bool)){
 		return NULL;
@@ -957,7 +833,9 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 		Py_DECREF(cka_unwrap_bool);
 	}
 
-	if(! _find_key(self, id, id_length, label, label_length, class, ckawrap,
+	if (class == CKO_VENDOR_DEFINED)
+		class_ptr = NULL;
+	if(! _find_key(self, id, id_length, label, label_length, class_ptr, ckawrap,
 			ckaunwrap, &objects, &objects_len))
 		return NULL;
 
@@ -1552,7 +1430,7 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
     Py_ssize_t id_length = 0;
     Py_ssize_t label_length = 0;
 	CK_MECHANISM wrapping_mech = {CKM_RSA_PKCS, NULL, 0};
-	CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+	CK_OBJECT_CLASS key_class = CKO_PRIVATE_KEY;
 	CK_KEY_TYPE key_type = CKK_RSA;
 
     PyObj2Bool_mapping_t attrs_priv[] = {
@@ -1845,9 +1723,6 @@ static PyMethodDef IPA_PKCS11_methods[] = {
 		{ "generate_replica_key_pair",
 		(PyCFunction) IPA_PKCS11_generate_replica_key_pair, METH_VARARGS|METH_KEYWORDS,
 		"Generate replica key pair" },
-		{ "get_key_handle",
-		(PyCFunction) IPA_PKCS11_get_key_handle, METH_VARARGS|METH_KEYWORDS,
-		"Get key" },
 		{ "find_keys",
 		(PyCFunction) IPA_PKCS11_find_keys, METH_VARARGS|METH_KEYWORDS,
 		"Find keys" },
