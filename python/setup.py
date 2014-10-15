@@ -10,11 +10,11 @@ if not os.path.exists(python_header):
 module = Extension('ipapkcs11',
                    define_macros = [],
                    include_dirs = [],
-                   libraries = ['dl', 'crypto'],
+                   libraries = ['dl', 'crypto', 'p11-kit'],
                    library_dirs = [],
                    extra_compile_args = [
                        '-std=c99',
-                       '-I/usr/include/p11-kit-1/p11-kit',
+                       '-I/usr/include/p11-kit-1',
                        '-ggdb3',
                        '-O2',
                        '-W', 

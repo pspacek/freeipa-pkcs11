@@ -25,13 +25,15 @@
 #include <Python.h>
 #include "structmember.h"
 
-#include <pkcs11.h>
 #include <openssl/asn1.h>
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include <openssl/bn.h>
 #include <openssl/bio.h>
+
+#include <p11-kit/pkcs11.h>
+#include <p11-kit/uri.h>
 
 #include "library.h"
 
@@ -199,7 +201,7 @@ int check_return_value(CK_RV rv, const char *message) {
  *
  * @warning input variables should not be modified when template is in use
  */
-void _fill_template_from_parts(CK_ATTRIBUTE_PTR attr, CK_ULONG_PTR template_len,
+int _fill_template_from_parts(CK_ATTRIBUTE_PTR attr, CK_ULONG_PTR template_len,
 		CK_BYTE_PTR id, CK_ULONG id_len,
 		CK_BYTE_PTR label, CK_ULONG label_len,
 		CK_OBJECT_CLASS *class, CK_BBOOL *cka_wrap,
@@ -248,6 +250,51 @@ void _fill_template_from_parts(CK_ATTRIBUTE_PTR attr, CK_ULONG_PTR template_len,
 		assert(cnt < *template_len);
 	}
 	*template_len = cnt;
+	return 1;
+}
+
+/**
+ * Parse string to P11-kit representation of PKCS#11 URI.
+ *
+ * @pre *urip is NULL
+ * @post
+ *
+ * @retval 0 in case of error
+ * @retval 1 when urip is filled with pointer to new URI structure
+ */
+int _parse_uri(const char *uri_str, P11KitUri **urip) {
+	P11KitUriResult result;
+	P11KitUri *uri = NULL;
+
+	assert (urip != NULL && *urip == NULL);
+
+	uri = p11_kit_uri_new();
+	if (!uri)
+	{
+		PyErr_SetString(IPA_PKCS11Error, "Cannot initialize URI parser");
+		return 0;
+	}
+
+	result = p11_kit_uri_parse(uri_str, P11_KIT_URI_FOR_OBJECT, uri);
+	if (result != P11_KIT_URI_OK)
+	{
+		PyErr_SetString(IPA_PKCS11Error, "Cannot parse URI");
+		goto cleanup;
+	}
+
+	if (p11_kit_uri_any_unrecognized(uri))
+	{
+		PyErr_SetString(IPA_PKCS11Error, "PKCS#11 URI contains "
+				"unsupported attributes");
+		goto cleanup;
+	}
+
+	*urip = uri;
+	return 1;
+
+cleanup:
+	p11_kit_uri_free(uri);
+	return 0;
 }
 
 /*
@@ -796,9 +843,11 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_OBJECT_HANDLE *objects = NULL;
     unsigned int objects_len = 0;
     PyObject *result_list = NULL;
-    const char *uri = NULL; //TODO free
+    const char *uri_str = NULL; //TODO free?
+    P11KitUri *uri = NULL;
     CK_BYTE *label = NULL; //TODO free
-    CK_ATTRIBUTE template[MAX_TEMPLATE_LEN];
+    CK_ATTRIBUTE template_static[MAX_TEMPLATE_LEN];
+    CK_ATTRIBUTE_PTR template = template_static;
     CK_ULONG template_len = MAX_TEMPLATE_LEN;
 
 	static char *kwlist[] = {"class", "label", "id", "cka_wrap",
@@ -806,7 +855,7 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iUz#OOs", kwlist,
 			 &class, &label_unicode, &id, &id_length,
-			 &cka_wrap_bool, &cka_unwrap_bool, &uri)){
+			 &cka_wrap_bool, &cka_unwrap_bool, &uri_str)){
 		return NULL;
 	}
 
@@ -839,11 +888,21 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	if (class == CKO_VENDOR_DEFINED)
 		class_ptr = NULL;
 
-	_fill_template_from_parts(template, &template_len, id, id_length, label, label_length, class_ptr, ckawrap,
+	if (uri_str == NULL)
+		_fill_template_from_parts(template, &template_len, id, id_length, label, label_length, class_ptr, ckawrap,
 			ckaunwrap);
+	else {
+		if (!_parse_uri(uri_str, &uri))	return 0;
+		template = p11_kit_uri_get_attributes(uri, &template_len);
+		/* Do not deallocate URI while you are using the template.
+		 * Template contains pointers to values inside URI! */
+	}
 
 	if(! _find_key(self, template, template_len, &objects, &objects_len))
 		return NULL;
+
+	if (uri != NULL)
+		p11_kit_uri_free(uri);
 
 	result_list = PyList_New(objects_len);
 	if(result_list == NULL){
