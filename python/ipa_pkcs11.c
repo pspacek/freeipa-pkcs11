@@ -555,6 +555,7 @@ IPA_PKCS11_finalize(IPA_PKCS11* self) {
 /**
  * Generate master key
  *
+ *:return: master key handle
  */
 static PyObject *
 IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
@@ -664,13 +665,14 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     if(!check_return_value(rv, "generate master key"))
     	return NULL;
 
-	return Py_None;
+	return Py_BuildValue("k",master_key);;
 }
 
 
 /**
  * Generate replica keys
  *
+ * :returns: tuple (public_key_handle, private_key_handle)
  */
 static PyObject *
 IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
@@ -833,7 +835,7 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
     if(!check_return_value(rv, "generate key pair"))
     	return NULL;
 
-	return Py_None;
+	return Py_BuildValue("(kk)", public_key, private_key);
 }
 
 /**
