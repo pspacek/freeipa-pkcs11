@@ -12,9 +12,7 @@ def str_to_hex(s):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger('t')
-    p11 = IPA_PKCS11()
-    #try:
-    p11.initialize(0, "1234", "/usr/lib64/pkcs11/libsofthsm2.so")
+    p11 = IPA_PKCS11(0, "1234", "/usr/lib64/pkcs11/libsofthsm2.so")
 
     # master key
     p11.generate_master_key(u"žžž-aest", "m", key_length=16, cka_wrap=True,

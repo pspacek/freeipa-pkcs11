@@ -432,22 +432,6 @@ IPA_PKCS11_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
 }
 
 static int IPA_PKCS11_init(IPA_PKCS11 *self, PyObject *args, PyObject *kwds) {
-
-	static char *kwlist[] = { NULL };
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|", kwlist))
-		return -1;
-
-	return 0;
-}
-
-static PyMemberDef IPA_PKCS11_members[] = { { NULL } /* Sentinel */
-};
-
-/**
- * Initialization PKC11 library
- */
-static PyObject *
-IPA_PKCS11_initialize(IPA_PKCS11* self, PyObject *args) {
 	const char* user_pin = NULL;
 	const char* library_path = NULL;
 	CK_RV rv;
@@ -455,13 +439,13 @@ IPA_PKCS11_initialize(IPA_PKCS11* self, PyObject *args) {
 
 	/* Parse method args*/
 	if (!PyArg_ParseTuple(args, "iss", &self->slot, &user_pin, &library_path))
-		return NULL;
+		return -1;
 
 	CK_C_GetFunctionList pGetFunctionList = loadLibrary(library_path,
 			&module_handle);
 	if (!pGetFunctionList) {
 		PyErr_SetString(IPA_PKCS11Error, "Could not load the library.");
-		return NULL;
+		return -1;
 	}
 
 	/*
@@ -474,7 +458,7 @@ IPA_PKCS11_initialize(IPA_PKCS11* self, PyObject *args) {
 	 */
 	rv = self->p11->C_Initialize(NULL);
 	if (!check_return_value(rv, "initialize"))
-		return NULL;
+		return -1;
 
 	/*
 	 *Start session
@@ -482,7 +466,7 @@ IPA_PKCS11_initialize(IPA_PKCS11* self, PyObject *args) {
 	rv = self->p11->C_OpenSession(self->slot,
 			CKF_SERIAL_SESSION | CKF_RW_SESSION, NULL, NULL, &self->session);
 	if (!check_return_value(rv, "open session"))
-		return NULL;
+		return -1;
 
 	/*
 	 * Login
@@ -490,10 +474,14 @@ IPA_PKCS11_initialize(IPA_PKCS11* self, PyObject *args) {
 	rv = self->p11->C_Login(self->session, CKU_USER, (CK_BYTE*) user_pin,
 			strlen((char *) user_pin));
 	if (!check_return_value(rv, "log in"))
-		return NULL;
+		return -1;
 
-	return Py_None;
+	return 0;
 }
+
+static PyMemberDef IPA_PKCS11_members[] = { { NULL } /* Sentinel */
+};
+
 
 /*
  * Finalize operations with pkcs11 library
@@ -1776,9 +1764,6 @@ final:
 }
 
 static PyMethodDef IPA_PKCS11_methods[] = {
-		{ "initialize",
-		(PyCFunction) IPA_PKCS11_initialize, METH_VARARGS,
-		"Inicialize pkcs11 library" },
 		{ "finalize",
 		(PyCFunction) IPA_PKCS11_finalize, METH_NOARGS,
 		"Finalize operations with pkcs11 library" },
