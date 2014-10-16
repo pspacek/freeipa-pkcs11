@@ -850,7 +850,7 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     CK_ATTRIBUTE_PTR template = template_static;
     CK_ULONG template_len = MAX_TEMPLATE_LEN;
 
-	static char *kwlist[] = {"class", "label", "id", "cka_wrap",
+	static char *kwlist[] = {"objclass", "label", "id", "cka_wrap",
 			"cka_unwrap", "uri", NULL };
 	//TODO check long overflow
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iUz#OOs", kwlist,
