@@ -26,6 +26,8 @@ if __name__ == '__main__':
     rep1_pub = p11.find_keys(uri="pkcs11:object=replica1;objecttype=public")
     assert len(rep1_pub) == 1, "replica key pair has to contain 1 pub key instead of %s" % len(rep1_pub)
     rep1_pub = rep1_pub[0]
+    iswrap = p11.get_attribute(rep1_pub, ipapkcs11.CKA_WRAP)
+    assert (iswrap is True), "replica public key has to have CKA_WRAP = TRUE"
 
     rep1_priv = p11.find_keys(ipapkcs11.KEY_CLASS_PRIVATE_KEY, label=u"replica1", cka_unwrap=True)
     assert len(rep1_priv) == 1, "replica key pair has to contain 1 private key instead of %s" % len(rep1_priv)
