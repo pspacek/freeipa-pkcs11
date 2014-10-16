@@ -50,14 +50,14 @@ CK_BBOOL false = CK_FALSE;
 #define MAX_TEMPLATE_LEN 32
 
 /**
- * IPA_PKCS11 type
+ * P11_Helper type
  */
 typedef struct {
 	PyObject_HEAD
 	CK_SLOT_ID slot;
 	CK_FUNCTION_LIST_PTR p11;
 	CK_SESSION_HANDLE session;
-} IPA_PKCS11;
+} P11_Helper;
 
 
 typedef enum {
@@ -109,13 +109,13 @@ typedef struct {
 } PyObj2Bool_mapping_t;
 
 /**
- * IPA_PKCS11 Exceptions
+ * ipap11helper Exceptions
  */
-static PyObject *IPA_PKCS11Exception; //parent class for all exceptions
+static PyObject *ipap11helperException; //parent class for all exceptions
 
-static PyObject *IPA_PKCS11Error;  //general error
-static PyObject *IPA_PKCS11NotFound;  //key not found
-static PyObject *IPA_PKCS11DuplicationError; //key already exists
+static PyObject *ipap11helperError;  //general error
+static PyObject *ipap11helperNotFound;  //key not found
+static PyObject *ipap11helperDuplicationError; //key already exists
 
 
 /***********************************************************************
@@ -150,13 +150,13 @@ void convert_py2bool(PyObj2Bool_mapping_t* mapping, int length){
 unsigned char* unicode_to_char_array(PyObject *unicode, Py_ssize_t *l){
 	PyObject* utf8_str = PyUnicode_AsUTF8String(unicode);
 	if (utf8_str == NULL){
-		PyErr_SetString(IPA_PKCS11Error, "Unable to encode UTF-8");
+		PyErr_SetString(ipap11helperError, "Unable to encode UTF-8");
 		return NULL;
 	}
 	Py_XINCREF(utf8_str);
 	unsigned char* bytes = (unsigned char*) PyString_AS_STRING(utf8_str);
 	if (bytes == NULL){
-		PyErr_SetString(IPA_PKCS11Error, "Unable to get bytes from string");
+		PyErr_SetString(ipap11helperError, "Unable to get bytes from string");
 		*l = 0;
 	} else {
 		*l = PyString_Size(utf8_str);
@@ -181,12 +181,12 @@ int check_return_value(CK_RV rv, const char *message) {
 	if (rv != CKR_OK) {
 		if (asprintf(&errmsg, "Error at %s: 0x%x\n", message, (unsigned int) rv)
 				== -1) {
-			PyErr_SetString(IPA_PKCS11Error,
+			PyErr_SetString(ipap11helperError,
 					"DOUBLE ERROR: Creating the error message caused an error");
 			return 0; //
 		}
 		if (errmsg != NULL) {
-			PyErr_SetString(IPA_PKCS11Error, errmsg);
+			PyErr_SetString(ipap11helperError, errmsg);
 			free(errmsg);
 		}
 		return 0;
@@ -271,20 +271,20 @@ int _parse_uri(const char *uri_str, P11KitUri **urip) {
 	uri = p11_kit_uri_new();
 	if (!uri)
 	{
-		PyErr_SetString(IPA_PKCS11Error, "Cannot initialize URI parser");
+		PyErr_SetString(ipap11helperError, "Cannot initialize URI parser");
 		return 0;
 	}
 
 	result = p11_kit_uri_parse(uri_str, P11_KIT_URI_FOR_OBJECT, uri);
 	if (result != P11_KIT_URI_OK)
 	{
-		PyErr_SetString(IPA_PKCS11Error, "Cannot parse URI");
+		PyErr_SetString(ipap11helperError, "Cannot parse URI");
 		goto cleanup;
 	}
 
 	if (p11_kit_uri_any_unrecognized(uri))
 	{
-		PyErr_SetString(IPA_PKCS11Error, "PKCS#11 URI contains "
+		PyErr_SetString(ipap11helperError, "PKCS#11 URI contains "
 				"unsupported attributes");
 		goto cleanup;
 	}
@@ -307,7 +307,7 @@ cleanup:
  * :return: 1 if success, otherwise return 0 and set the exception
  */
 int
-_find_key(IPA_PKCS11* self, CK_ATTRIBUTE_PTR template, CK_ULONG template_len,
+_find_key(P11_Helper* self, CK_ATTRIBUTE_PTR template, CK_ULONG template_len,
 	  CK_OBJECT_HANDLE **objects, unsigned int *objects_count)
 {
 	CK_OBJECT_HANDLE result_object;
@@ -333,7 +333,7 @@ _find_key(IPA_PKCS11* self, CK_ATTRIBUTE_PTR template, CK_ULONG template_len,
         			allocated * sizeof(CK_OBJECT_HANDLE));
         	if (tmp_objects_ptr == NULL){
         		*objects_count = 0;
-        		PyErr_SetString(IPA_PKCS11Error, "_find_key realloc failed");
+        		PyErr_SetString(ipap11helperError, "_find_key realloc failed");
         		if (result_objects != NULL)
         			free(result_objects);
         		return 0;
@@ -377,7 +377,7 @@ _find_key(IPA_PKCS11* self, CK_ATTRIBUTE_PTR template, CK_ULONG template_len,
  *
  */
 int
-_id_label_exists(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
+_id_label_exists(P11_Helper* self, CK_BYTE_PTR id, CK_ULONG id_len,
 		CK_BYTE_PTR label, CK_ULONG label_len,
 		CK_OBJECT_CLASS class) {
 
@@ -409,18 +409,18 @@ _id_label_exists(IPA_PKCS11* self, CK_BYTE_PTR id, CK_ULONG id_len,
 }
 
 /***********************************************************************
- * IPA_PKCS11 object
+ * P11_Helper object
  */
 
-static void IPA_PKCS11_dealloc(IPA_PKCS11* self) {
+static void P11_Helper_dealloc(P11_Helper* self) {
 	self->ob_type->tp_free((PyObject*) self);
 }
 
 static PyObject *
-IPA_PKCS11_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
-	IPA_PKCS11 *self;
+P11_Helper_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
+	P11_Helper *self;
 
-	self = (IPA_PKCS11 *) type->tp_alloc(type, 0);
+	self = (P11_Helper *) type->tp_alloc(type, 0);
 	if (self != NULL) {
 
 		self->slot = 0;
@@ -431,7 +431,7 @@ IPA_PKCS11_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
 	return (PyObject *) self;
 }
 
-static int IPA_PKCS11_init(IPA_PKCS11 *self, PyObject *args, PyObject *kwds) {
+static int P11_Helper_init(P11_Helper *self, PyObject *args, PyObject *kwds) {
 	const char* user_pin = NULL;
 	const char* library_path = NULL;
 	CK_RV rv;
@@ -444,7 +444,7 @@ static int IPA_PKCS11_init(IPA_PKCS11 *self, PyObject *args, PyObject *kwds) {
 	CK_C_GetFunctionList pGetFunctionList = loadLibrary(library_path,
 			&module_handle);
 	if (!pGetFunctionList) {
-		PyErr_SetString(IPA_PKCS11Error, "Could not load the library.");
+		PyErr_SetString(ipap11helperError, "Could not load the library.");
 		return -1;
 	}
 
@@ -479,7 +479,7 @@ static int IPA_PKCS11_init(IPA_PKCS11 *self, PyObject *args, PyObject *kwds) {
 	return 0;
 }
 
-static PyMemberDef IPA_PKCS11_members[] = { { NULL } /* Sentinel */
+static PyMemberDef P11_Helper_members[] = { { NULL } /* Sentinel */
 };
 
 
@@ -487,7 +487,7 @@ static PyMemberDef IPA_PKCS11_members[] = { { NULL } /* Sentinel */
  * Finalize operations with pkcs11 library
  */
 static PyObject *
-IPA_PKCS11_finalize(IPA_PKCS11* self) {
+P11_Helper_finalize(P11_Helper* self) {
 	CK_RV rv;
 
 	if (self->p11 == NULL)
@@ -532,7 +532,7 @@ IPA_PKCS11_finalize(IPA_PKCS11* self) {
  *:return: master key handle
  */
 static PyObject *
-IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+P11_Helper_generate_master_key(P11_Helper* self, PyObject *args, PyObject *kwds)
 {
 
     PyObj2Bool_mapping_t attrs[] = {
@@ -591,7 +591,7 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     };
 
     if ((key_length != 16) && (key_length != 24) && (key_length != 32)){
-        PyErr_SetString(IPA_PKCS11Error, "generate_master_key: key length allowed values are: 16, 24 and 32");
+        PyErr_SetString(ipap11helperError, "generate_master_key: key length allowed values are: 16, 24 and 32");
         return NULL;
     }
 
@@ -599,7 +599,7 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     //TODO is label freed inside???? dont we use freed value later
     r = _id_label_exists(self, id, id_length, label, label_length, CKO_SECRET_KEY);
     if (r == 1){
-    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    	PyErr_SetString(ipap11helperDuplicationError,
     			"Master key with same ID and LABEL already exists");
     	return NULL;
     } else if (r == -1){
@@ -649,7 +649,7 @@ IPA_PKCS11_generate_master_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
  * :returns: tuple (public_key_handle, private_key_handle)
  */
 static PyObject *
-IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+P11_Helper_generate_replica_key_pair(P11_Helper* self, PyObject *args, PyObject *kwds)
 {
     CK_RV rv;
     int r;
@@ -741,7 +741,7 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
 
     r = _id_label_exists(self, id, id_length, label, label_length, CKO_PRIVATE_KEY);
     if (r == 1){
-    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    	PyErr_SetString(ipap11helperDuplicationError,
     			"Private key with same ID and LABEL already exists");
     	return NULL;
     } else if (r == -1){
@@ -750,7 +750,7 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
 
     r = _id_label_exists(self, id, id_length, label, label_length, CKO_PUBLIC_KEY);
     if (r == 1){
-    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    	PyErr_SetString(ipap11helperDuplicationError,
     			"Public key with same ID and LABEL already exists");
     	return NULL;
     } else if (r == -1){
@@ -816,7 +816,7 @@ IPA_PKCS11_generate_replica_key_pair(IPA_PKCS11* self, PyObject *args, PyObject 
  * Find key
  */
 static PyObject *
-IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+P11_Helper_find_keys(P11_Helper* self, PyObject *args, PyObject *kwds)
 {
     CK_OBJECT_CLASS class = CKO_VENDOR_DEFINED;
     CK_OBJECT_CLASS *class_ptr = &class;
@@ -894,7 +894,7 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 
 	result_list = PyList_New(objects_len);
 	if(result_list == NULL){
-    	PyErr_SetString(IPA_PKCS11Error,
+    	PyErr_SetString(ipap11helperError,
     			"Unable to create list with results");
     	if(objects != NULL){
     		free(objects);
@@ -904,7 +904,7 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
 	Py_INCREF(result_list);
 	for(int i=0; i<objects_len; ++i){
 		if(PyList_SetItem(result_list, i, Py_BuildValue("k",objects[i])) == -1){
-	    	PyErr_SetString(IPA_PKCS11Error,
+	    	PyErr_SetString(ipap11helperError,
 	    			"Unable to add to value to result list");
 	    	if(objects != NULL){
 	    		free(objects);
@@ -921,7 +921,7 @@ IPA_PKCS11_find_keys(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
  * delete key
  */
 static PyObject *
-IPA_PKCS11_delete_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+P11_Helper_delete_key(P11_Helper* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
     CK_OBJECT_HANDLE key_handle = 0;
@@ -944,7 +944,7 @@ IPA_PKCS11_delete_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
  */
 //TODO remove, we don't want to export secret key
 static PyObject *
-IPA_PKCS11_export_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+P11_Helper_export_secret_key(P11_Helper* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
 	CK_UTF8CHAR_PTR value = NULL;
@@ -978,7 +978,7 @@ IPA_PKCS11_export_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     }
 
     if (obj_template[0].ulValueLen <= 0){
-    	PyErr_SetString(IPA_PKCS11NotFound, "Value not found");
+    	PyErr_SetString(ipap11helperNotFound, "Value not found");
     	free(value);
     	return NULL;
     }
@@ -992,7 +992,7 @@ IPA_PKCS11_export_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
  * export RSA public key
  */
 static PyObject *
-IPA_PKCS11_export_RSA_public_key(IPA_PKCS11* self, CK_OBJECT_HANDLE object)
+P11_Helper_export_RSA_public_key(P11_Helper* self, CK_OBJECT_HANDLE object)
 {
 	CK_RV rv;
 	PyObject *ret = NULL;
@@ -1031,12 +1031,12 @@ IPA_PKCS11_export_RSA_public_key(IPA_PKCS11* self, CK_OBJECT_HANDLE object)
 
     /* Check if the key is RSA public key */
     if (class != CKO_PUBLIC_KEY){
-    	PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: required public key class");
+    	PyErr_SetString(ipap11helperError, "export_RSA_public_key: required public key class");
     	return NULL;
     }
 
     if (key_type != CKK_RSA){
-    	PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: required RSA key type");
+    	PyErr_SetString(ipap11helperError, "export_RSA_public_key: required RSA key type");
     	return NULL;
     }
 
@@ -1044,13 +1044,13 @@ IPA_PKCS11_export_RSA_public_key(IPA_PKCS11* self, CK_OBJECT_HANDLE object)
     pkey = EVP_PKEY_new();
     n = BN_bin2bn((const unsigned char *) modulus, obj_template[0].ulValueLen * sizeof(CK_BYTE), NULL);
     if( n == NULL ) {
-        PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: internal error: unable to convert modulus");
+        PyErr_SetString(ipap11helperError, "export_RSA_public_key: internal error: unable to convert modulus");
         goto final;
     }
 
     e = BN_bin2bn((const unsigned char *) exponent, obj_template[1].ulValueLen * sizeof(CK_BYTE), NULL);
     if( e == NULL ) {
-        PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: internal error: unable to convert exponent");
+        PyErr_SetString(ipap11helperError, "export_RSA_public_key: internal error: unable to convert exponent");
         goto final;
     }
 
@@ -1059,7 +1059,7 @@ IPA_PKCS11_export_RSA_public_key(IPA_PKCS11* self, CK_OBJECT_HANDLE object)
     rsa->e = e;
 
     if (EVP_PKEY_set1_RSA(pkey,rsa) == 0){
-        PyErr_SetString(IPA_PKCS11Error, "export_RSA_public_key: internal error: EVP_PKEY_set1_RSA failed");
+        PyErr_SetString(ipap11helperError, "export_RSA_public_key: internal error: EVP_PKEY_set1_RSA failed");
         goto final;
     }
 
@@ -1085,7 +1085,7 @@ final:
  * Export public key in SubjectPublicKeyInfo (RFC5280) DER encoded format
  */
 static PyObject *
-IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+P11_Helper_export_public_key(P11_Helper* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
     CK_OBJECT_HANDLE object = 0;
@@ -1108,16 +1108,16 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
     	return NULL;
 
     if (class != CKO_PUBLIC_KEY){
-    	PyErr_SetString(IPA_PKCS11Error, "export_public_key: required public key class");
+    	PyErr_SetString(ipap11helperError, "export_public_key: required public key class");
     	return NULL;
     }
 
     switch (key_type){
     case CKK_RSA:
-    	return IPA_PKCS11_export_RSA_public_key(self, object);
+    	return P11_Helper_export_RSA_public_key(self, object);
     	break;
     default:
-    	PyErr_SetString(IPA_PKCS11Error, "export_public_key: unsupported key type");
+    	PyErr_SetString(ipap11helperError, "export_public_key: unsupported key type");
     }
 
     return NULL;
@@ -1128,7 +1128,7 @@ IPA_PKCS11_export_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
  *
  */
 static PyObject *
-IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_t label_length,
+P11_Helper_import_RSA_public_key(P11_Helper* self, CK_UTF8CHAR *label, Py_ssize_t label_length,
 		CK_BYTE *id, Py_ssize_t id_length, EVP_PKEY *pkey, CK_BBOOL* cka_copyable,
 		CK_BBOOL* cka_derive, CK_BBOOL* cka_encrypt,
 		CK_BBOOL* cka_modifiable, CK_BBOOL* cka_private, CK_BBOOL* cka_trusted,
@@ -1165,13 +1165,13 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
     CK_OBJECT_HANDLE object;
 
 	if (pkey->type != EVP_PKEY_RSA){
-		PyErr_SetString(IPA_PKCS11Error, "Required RSA public key");
+		PyErr_SetString(ipap11helperError, "Required RSA public key");
 		return NULL;
 	}
 
     rsa = EVP_PKEY_get1_RSA(pkey);
     if (rsa == NULL){
-    	PyErr_SetString(IPA_PKCS11Error, "import_RSA_public_key: EVP_PKEY_get1_RSA error");
+    	PyErr_SetString(ipap11helperError, "import_RSA_public_key: EVP_PKEY_get1_RSA error");
     	free(pkey);
     	return NULL;
     }
@@ -1180,7 +1180,7 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
     modulus = (CK_BYTE_PTR) malloc(BN_num_bytes(rsa->n));
     modulus_len = BN_bn2bin(rsa->n, (unsigned char *) modulus);
     if(modulus == NULL){
-    	PyErr_SetString(IPA_PKCS11Error, "import_RSA_public_key: BN_bn2bin modulus error");
+    	PyErr_SetString(ipap11helperError, "import_RSA_public_key: BN_bn2bin modulus error");
     	//TODO free
     	return NULL;
     }
@@ -1188,7 +1188,7 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
     exponent = (CK_BYTE_PTR) malloc(BN_num_bytes(rsa->e));
     exponent_len = BN_bn2bin(rsa->e, (unsigned char *) exponent);
     if(exponent == NULL){
-    	PyErr_SetString(IPA_PKCS11Error, "import_RSA_public_key: BN_bn2bin exponent error");
+    	PyErr_SetString(ipap11helperError, "import_RSA_public_key: BN_bn2bin exponent error");
     	//TODO free
     	return NULL;
     }
@@ -1208,7 +1208,7 @@ IPA_PKCS11_import_RSA_public_key(IPA_PKCS11* self, CK_UTF8CHAR *label, Py_ssize_
  *
  */
 static PyObject *
-IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
+P11_Helper_import_public_key(P11_Helper* self, PyObject *args, PyObject *kwds){
     int r;
     PyObject *ret = NULL;
     PyObject *label_unicode = NULL;
@@ -1258,7 +1258,7 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 
     r = _id_label_exists(self, id, id_length, label, label_length, CKO_PUBLIC_KEY);
     if (r == 1){
-    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    	PyErr_SetString(ipap11helperDuplicationError,
     			"Public key with same ID and LABEL already exists");
     	return NULL;
     } else if (r == -1){
@@ -1272,12 +1272,12 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	/* decode from ASN1 DER */
     pkey = d2i_PUBKEY(NULL, (const unsigned char **) &data, data_length);
     if(pkey == NULL){
-    	PyErr_SetString(IPA_PKCS11Error, "import_public_key: d2i_PUBKEY error");
+    	PyErr_SetString(ipap11helperError, "import_public_key: d2i_PUBKEY error");
     	return NULL;
     }
 	switch(pkey->type){
 	case EVP_PKEY_RSA:
-		ret = IPA_PKCS11_import_RSA_public_key(self, label, label_length,
+		ret = P11_Helper_import_RSA_public_key(self, label, label_length,
 			id, id_length, pkey,
 			attrs_pub[pub_en_cka_copyable].bool,
 			attrs_pub[pub_en_cka_derive].bool,
@@ -1291,15 +1291,15 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	case EVP_PKEY_DSA:
 		ret = NULL;
-		PyErr_SetString(IPA_PKCS11Error, "DSA is not supported");
+		PyErr_SetString(ipap11helperError, "DSA is not supported");
 		break;
 	case EVP_PKEY_EC:
 		ret = NULL;
-		PyErr_SetString(IPA_PKCS11Error, "EC is not supported");
+		PyErr_SetString(ipap11helperError, "EC is not supported");
 		break;
 	default:
 		ret = NULL;
-		PyErr_SetString(IPA_PKCS11Error, "Unsupported key type");
+		PyErr_SetString(ipap11helperError, "Unsupported key type");
 	}
     if (pkey != NULL) EVP_PKEY_free(pkey);
 	return ret;
@@ -1310,7 +1310,7 @@ IPA_PKCS11_import_public_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
  *
  */
 static PyObject *
-IPA_PKCS11_export_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+P11_Helper_export_wrapped_key(P11_Helper* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
     CK_OBJECT_HANDLE object_key = 0;
@@ -1355,7 +1355,7 @@ IPA_PKCS11_export_wrapped_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
  *
  */
 static PyObject *
-IPA_PKCS11_import_wrapped_secret_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+P11_Helper_import_wrapped_secret_key(P11_Helper* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
 	int r;
@@ -1421,7 +1421,7 @@ IPA_PKCS11_import_wrapped_secret_key(IPA_PKCS11* self, PyObject *args, PyObject 
 
     r = _id_label_exists(self, id, id_length, label, label_length, key_class);
     if (r == 1){
-    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    	PyErr_SetString(ipap11helperDuplicationError,
     			"Secret key with same ID and LABEL already exists");
     	return NULL;
     } else if (r == -1){
@@ -1469,7 +1469,7 @@ IPA_PKCS11_import_wrapped_secret_key(IPA_PKCS11* self, PyObject *args, PyObject 
  *
  */
 static PyObject *
-IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject *kwds)
+P11_Helper_import_wrapped_private_key(P11_Helper* self, PyObject *args, PyObject *kwds)
 {
 	CK_RV rv;
 	int r;
@@ -1533,7 +1533,7 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
 
     r = _id_label_exists(self, id, id_length, label, label_length, CKO_SECRET_KEY);
     if (r == 1){
-    	PyErr_SetString(IPA_PKCS11DuplicationError,
+    	PyErr_SetString(ipap11helperDuplicationError,
     			"Secret key with same ID and LABEL already exists");
     	return NULL;
     } else if (r == -1){
@@ -1579,7 +1579,7 @@ IPA_PKCS11_import_wrapped_private_key(IPA_PKCS11* self, PyObject *args, PyObject
  * Set object attributes
  */
 static PyObject *
-IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
+P11_Helper_set_attribute(P11_Helper* self, PyObject *args, PyObject *kwds){
 	PyObject *ret = Py_None;
 	PyObject *value = NULL;
     CK_ULONG object = 0;
@@ -1622,7 +1622,7 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	case CKA_ID:
 		if(!PyString_Check(value)){
-			PyErr_SetString(IPA_PKCS11Error, "String value expected");
+			PyErr_SetString(ipap11helperError, "String value expected");
 			ret = NULL;
 			goto final;
 		}
@@ -1634,7 +1634,7 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	case CKA_LABEL:
 		if(!PyUnicode_Check(value)){
-			PyErr_SetString(IPA_PKCS11Error, "Unicode value expected");
+			PyErr_SetString(ipap11helperError, "Unicode value expected");
 			ret = NULL;
 			goto final;
 		}
@@ -1648,7 +1648,7 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	case CKA_KEY_TYPE:
 		if(!PyInt_Check(value)){
-			PyErr_SetString(IPA_PKCS11Error, "Integer value expected");
+			PyErr_SetString(ipap11helperError, "Integer value expected");
 			ret = NULL;
 			goto final;
 		}
@@ -1658,7 +1658,7 @@ IPA_PKCS11_set_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	default:
 		ret = NULL;
-		PyErr_SetString(IPA_PKCS11Error, "Unknown attribute");
+		PyErr_SetString(ipap11helperError, "Unknown attribute");
 		goto final;
 	}
 
@@ -1676,7 +1676,7 @@ final:
  * Get object attributes
  */
 static PyObject *
-IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
+P11_Helper_get_attribute(P11_Helper* self, PyObject *args, PyObject *kwds){
 	PyObject *ret = NULL;
 	void *value = NULL;
     CK_ULONG object = 0;
@@ -1698,7 +1698,7 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 	rv = self->p11->C_GetAttributeValue(self->session, object, template, 1);
 	// attribute doesn't exists
 	if (rv == CKR_ATTRIBUTE_TYPE_INVALID || template[0].ulValueLen == (unsigned long) -1){
-		PyErr_SetString(IPA_PKCS11NotFound, "attribute does not exist");
+		PyErr_SetString(ipap11helperNotFound, "attribute does not exist");
 		ret = NULL;
 		goto final;
 	}
@@ -1754,7 +1754,7 @@ IPA_PKCS11_get_attribute(IPA_PKCS11* self, PyObject *args, PyObject *kwds){
 		break;
 	default:
 		ret = NULL;
-		PyErr_SetString(IPA_PKCS11Error, "Unknown attribute");
+		PyErr_SetString(ipap11helperError, "Unknown attribute");
 		goto final;
 	}
 
@@ -1763,56 +1763,56 @@ final:
 	return ret;
 }
 
-static PyMethodDef IPA_PKCS11_methods[] = {
+static PyMethodDef P11_Helper_methods[] = {
 		{ "finalize",
-		(PyCFunction) IPA_PKCS11_finalize, METH_NOARGS,
+		(PyCFunction) P11_Helper_finalize, METH_NOARGS,
 		"Finalize operations with pkcs11 library" },
 		{ "generate_master_key",
-		(PyCFunction) IPA_PKCS11_generate_master_key, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_generate_master_key, METH_VARARGS|METH_KEYWORDS,
 		"Generate master key" },
 		{ "generate_replica_key_pair",
-		(PyCFunction) IPA_PKCS11_generate_replica_key_pair, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_generate_replica_key_pair, METH_VARARGS|METH_KEYWORDS,
 		"Generate replica key pair" },
 		{ "find_keys",
-		(PyCFunction) IPA_PKCS11_find_keys, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_find_keys, METH_VARARGS|METH_KEYWORDS,
 		"Find keys" },
 		{ "delete_key",
-		(PyCFunction) IPA_PKCS11_delete_key, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_delete_key, METH_VARARGS|METH_KEYWORDS,
 		"Delete key" },
 		{ "export_secret_key", //TODO deprecated, delete it
-		(PyCFunction) IPA_PKCS11_export_secret_key, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_export_secret_key, METH_VARARGS|METH_KEYWORDS,
 		"Export secret key" },
 		{ "export_public_key",
-		(PyCFunction) IPA_PKCS11_export_public_key, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_export_public_key, METH_VARARGS|METH_KEYWORDS,
 		"Export public key" },
 		{ "import_public_key",
-		(PyCFunction) IPA_PKCS11_import_public_key, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_import_public_key, METH_VARARGS|METH_KEYWORDS,
 		"Import public key" },
 		{ "export_wrapped_key",
-		(PyCFunction) IPA_PKCS11_export_wrapped_key, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_export_wrapped_key, METH_VARARGS|METH_KEYWORDS,
 		"Export wrapped private key" },
 		{ "import_wrapped_secret_key",
-		(PyCFunction) IPA_PKCS11_import_wrapped_secret_key, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_import_wrapped_secret_key, METH_VARARGS|METH_KEYWORDS,
 		"Import wrapped secret key" },
 		{ "import_wrapped_private_key",
-		(PyCFunction) IPA_PKCS11_import_wrapped_private_key, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_import_wrapped_private_key, METH_VARARGS|METH_KEYWORDS,
 		"Import wrapped private key" },
 		{ "set_attribute",
-		(PyCFunction) IPA_PKCS11_set_attribute, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_set_attribute, METH_VARARGS|METH_KEYWORDS,
 		"Set attribute" },
 		{ "get_attribute",
-		(PyCFunction) IPA_PKCS11_get_attribute, METH_VARARGS|METH_KEYWORDS,
+		(PyCFunction) P11_Helper_get_attribute, METH_VARARGS|METH_KEYWORDS,
 		"Get attribute" },
 		{ NULL } /* Sentinel */
 };
 
-static PyTypeObject IPA_PKCS11Type = {
+static PyTypeObject P11_HelperType = {
 	PyObject_HEAD_INIT(NULL)
 	0, /*ob_size*/
-	"ipapkcs11.IPA_PKCS11", /*tp_name*/
-	sizeof(IPA_PKCS11), /*tp_basicsize*/
+	"ipap11helper.P11_Helper", /*tp_name*/
+	sizeof(P11_Helper), /*tp_basicsize*/
 	0, /*tp_itemsize*/
-	(destructor)IPA_PKCS11_dealloc, /*tp_dealloc*/
+	(destructor)P11_Helper_dealloc, /*tp_dealloc*/
 	0, /*tp_print*/
 	0, /*tp_getattr*/
 	0, /*tp_setattr*/
@@ -1828,24 +1828,24 @@ static PyTypeObject IPA_PKCS11Type = {
 	0, /*tp_setattro*/
 	0, /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
-	"IPA_PKCS11 objects", /* tp_doc */
+	"P11_Helper objects", /* tp_doc */
 	0, /* tp_traverse */
 	0, /* tp_clear */
 	0, /* tp_richcompare */
 	0, /* tp_weaklistoffset */
 	0, /* tp_iter */
 	0, /* tp_iternext */
-	IPA_PKCS11_methods, /* tp_methods */
-	IPA_PKCS11_members, /* tp_members */
+	P11_Helper_methods, /* tp_methods */
+	P11_Helper_members, /* tp_members */
 	0, /* tp_getset */
 	0, /* tp_base */
 	0, /* tp_dict */
 	0, /* tp_descr_get */
 	0, /* tp_descr_set */
 	0, /* tp_dictoffset */
-	(initproc)IPA_PKCS11_init, /* tp_init */
+	(initproc)P11_Helper_init, /* tp_init */
 	0, /* tp_alloc */
-	IPA_PKCS11_new, /* tp_new */
+	P11_Helper_new, /* tp_new */
 };
 
 static PyMethodDef module_methods[] = { { NULL } /* Sentinel */
@@ -1854,184 +1854,184 @@ static PyMethodDef module_methods[] = { { NULL } /* Sentinel */
 #ifndef PyMODINIT_FUNC	/* declarations for DLL import/export */
 #define PyMODINIT_FUNC void
 #endif
-PyMODINIT_FUNC initipapkcs11(void) {
+PyMODINIT_FUNC initipap11helper(void) {
 	PyObject* m;
 
-	if (PyType_Ready(&IPA_PKCS11Type) < 0)
+	if (PyType_Ready(&P11_HelperType) < 0)
 		return;
 
 	/*
-	 * Setting up ipa_pkcs11 module
+	 * Setting up P11_Helper module
 	 */
-	m = Py_InitModule3("ipapkcs11", module_methods,
+	m = Py_InitModule3("ipap11helper", module_methods,
 			"Example module that creates an extension type.");
 
 	if (m == NULL)
 		return;
 
 	/*
-	 * Setting up IPA_PKCS11
+	 * Setting up P11_Helper
 	 */
-	Py_INCREF(&IPA_PKCS11Type);
-	PyModule_AddObject(m, "IPA_PKCS11", (PyObject *) &IPA_PKCS11Type);
+	Py_INCREF(&P11_HelperType);
+	PyModule_AddObject(m, "P11_Helper", (PyObject *) &P11_HelperType);
 
 	/*
-	 * Setting up IPA_PKCS11 Exceptions
+	 * Setting up P11_Helper Exceptions
 	 */
-	IPA_PKCS11Exception = PyErr_NewException("IPA_PKCS11.Exception", NULL, NULL);
-	Py_INCREF(IPA_PKCS11Exception);
-	PyModule_AddObject(m, "Exception", IPA_PKCS11Exception);
+	ipap11helperException = PyErr_NewException("ipap11helper.Exception", NULL, NULL);
+	Py_INCREF(ipap11helperException);
+	PyModule_AddObject(m, "Exception", ipap11helperException);
 
-	IPA_PKCS11Error = PyErr_NewException("IPA_PKCS11.Error", IPA_PKCS11Exception, NULL);
-	Py_INCREF(IPA_PKCS11Error);
-	PyModule_AddObject(m, "Error", IPA_PKCS11Error);
+	ipap11helperError = PyErr_NewException("ipap11helper.Error", ipap11helperException, NULL);
+	Py_INCREF(ipap11helperError);
+	PyModule_AddObject(m, "Error", ipap11helperError);
 
-	IPA_PKCS11NotFound = PyErr_NewException("IPA_PKCS11.NotFound", IPA_PKCS11Exception, NULL);
-	Py_INCREF(IPA_PKCS11NotFound);
-	PyModule_AddObject(m, "NotFound", IPA_PKCS11NotFound);
+	ipap11helperNotFound = PyErr_NewException("ipap11helper.NotFound", ipap11helperException, NULL);
+	Py_INCREF(ipap11helperNotFound);
+	PyModule_AddObject(m, "NotFound", ipap11helperNotFound);
 
-	IPA_PKCS11DuplicationError = PyErr_NewException("IPA_PKCS11.DuplicationError", IPA_PKCS11Exception, NULL);
-	Py_INCREF(IPA_PKCS11DuplicationError);
-	PyModule_AddObject(m, "DuplicationError", IPA_PKCS11DuplicationError);
+	ipap11helperDuplicationError = PyErr_NewException("ipap11helper.DuplicationError", ipap11helperException, NULL);
+	Py_INCREF(ipap11helperDuplicationError);
+	PyModule_AddObject(m, "DuplicationError", ipap11helperDuplicationError);
 
 	/**
 	 * Setting up module attributes
 	 */
 
 	/* Key Classes*/
-	PyObject *IPA_PKCS11_CLASS_PUBKEY_obj = PyInt_FromLong(CKO_PUBLIC_KEY);
-	PyObject_SetAttrString(m, "KEY_CLASS_PUBLIC_KEY", IPA_PKCS11_CLASS_PUBKEY_obj);
-	Py_XDECREF(IPA_PKCS11_CLASS_PUBKEY_obj);
+	PyObject *P11_Helper_CLASS_PUBKEY_obj = PyInt_FromLong(CKO_PUBLIC_KEY);
+	PyObject_SetAttrString(m, "KEY_CLASS_PUBLIC_KEY", P11_Helper_CLASS_PUBKEY_obj);
+	Py_XDECREF(P11_Helper_CLASS_PUBKEY_obj);
 
-	PyObject *IPA_PKCS11_CLASS_PRIVKEY_obj = PyInt_FromLong(CKO_PRIVATE_KEY);
-	PyObject_SetAttrString(m, "KEY_CLASS_PRIVATE_KEY", IPA_PKCS11_CLASS_PRIVKEY_obj);
-	Py_XDECREF(IPA_PKCS11_CLASS_PRIVKEY_obj);
+	PyObject *P11_Helper_CLASS_PRIVKEY_obj = PyInt_FromLong(CKO_PRIVATE_KEY);
+	PyObject_SetAttrString(m, "KEY_CLASS_PRIVATE_KEY", P11_Helper_CLASS_PRIVKEY_obj);
+	Py_XDECREF(P11_Helper_CLASS_PRIVKEY_obj);
 
-	PyObject *IPA_PKCS11_CLASS_SECRETKEY_obj = PyInt_FromLong(CKO_SECRET_KEY);
-	PyObject_SetAttrString(m, "KEY_CLASS_SECRET_KEY", IPA_PKCS11_CLASS_SECRETKEY_obj);
-	Py_XDECREF(IPA_PKCS11_CLASS_SECRETKEY_obj);
+	PyObject *P11_Helper_CLASS_SECRETKEY_obj = PyInt_FromLong(CKO_SECRET_KEY);
+	PyObject_SetAttrString(m, "KEY_CLASS_SECRET_KEY", P11_Helper_CLASS_SECRETKEY_obj);
+	Py_XDECREF(P11_Helper_CLASS_SECRETKEY_obj);
 
 	/* Key types*/
-	PyObject *IPA_PKCS11_KEY_TYPE_RSA_obj = PyInt_FromLong(CKK_RSA);
-	PyObject_SetAttrString(m, "KEY_TYPE_RSA", IPA_PKCS11_KEY_TYPE_RSA_obj);
-	Py_XDECREF(IPA_PKCS11_KEY_TYPE_RSA_obj);
+	PyObject *P11_Helper_KEY_TYPE_RSA_obj = PyInt_FromLong(CKK_RSA);
+	PyObject_SetAttrString(m, "KEY_TYPE_RSA", P11_Helper_KEY_TYPE_RSA_obj);
+	Py_XDECREF(P11_Helper_KEY_TYPE_RSA_obj);
 
-	PyObject *IPA_PKCS11_KEY_TYPE_AES_obj = PyInt_FromLong(CKK_AES);
-	PyObject_SetAttrString(m, "KEY_TYPE_AES", IPA_PKCS11_KEY_TYPE_AES_obj);
-	Py_XDECREF(IPA_PKCS11_KEY_TYPE_AES_obj);
+	PyObject *P11_Helper_KEY_TYPE_AES_obj = PyInt_FromLong(CKK_AES);
+	PyObject_SetAttrString(m, "KEY_TYPE_AES", P11_Helper_KEY_TYPE_AES_obj);
+	Py_XDECREF(P11_Helper_KEY_TYPE_AES_obj);
 
 	/* Wrapping mech type*/
-	PyObject *IPA_PKCS11_MECH_RSA_PKCS_obj = PyInt_FromLong(CKM_RSA_PKCS);
-	PyObject_SetAttrString(m, "MECH_RSA_PKCS", IPA_PKCS11_MECH_RSA_PKCS_obj);
-	Py_XDECREF(IPA_PKCS11_MECH_RSA_PKCS_obj);
+	PyObject *P11_Helper_MECH_RSA_PKCS_obj = PyInt_FromLong(CKM_RSA_PKCS);
+	PyObject_SetAttrString(m, "MECH_RSA_PKCS", P11_Helper_MECH_RSA_PKCS_obj);
+	Py_XDECREF(P11_Helper_MECH_RSA_PKCS_obj);
 
-	PyObject *IPA_PKCS11_MECH_RSA_PKCS_OAEP_obj = PyInt_FromLong(CKM_RSA_PKCS_OAEP);
-	PyObject_SetAttrString(m, "MECH_RSA_PKCS_OAEP", IPA_PKCS11_MECH_RSA_PKCS_OAEP_obj);
-	Py_XDECREF(IPA_PKCS11_MECH_RSA_PKCS_OAEP_obj);
+	PyObject *P11_Helper_MECH_RSA_PKCS_OAEP_obj = PyInt_FromLong(CKM_RSA_PKCS_OAEP);
+	PyObject_SetAttrString(m, "MECH_RSA_PKCS_OAEP", P11_Helper_MECH_RSA_PKCS_OAEP_obj);
+	Py_XDECREF(P11_Helper_MECH_RSA_PKCS_OAEP_obj);
 
-	PyObject *IPA_PKCS11_MECH_AES_KEY_WRAP_obj = PyInt_FromLong(CKM_AES_KEY_WRAP);
-	PyObject_SetAttrString(m, "MECH_AES_KEY_WRAP", IPA_PKCS11_MECH_AES_KEY_WRAP_obj);
-	Py_XDECREF(IPA_PKCS11_MECH_AES_KEY_WRAP_obj);
+	PyObject *P11_Helper_MECH_AES_KEY_WRAP_obj = PyInt_FromLong(CKM_AES_KEY_WRAP);
+	PyObject_SetAttrString(m, "MECH_AES_KEY_WRAP", P11_Helper_MECH_AES_KEY_WRAP_obj);
+	Py_XDECREF(P11_Helper_MECH_AES_KEY_WRAP_obj);
 
-	PyObject *IPA_PKCS11_MECH_AES_KEY_WRAP_PAD_obj = PyInt_FromLong(CKM_AES_KEY_WRAP_PAD);
-	PyObject_SetAttrString(m, "MECH_AES_KEY_WRAP_PAD", IPA_PKCS11_MECH_AES_KEY_WRAP_PAD_obj);
-	Py_XDECREF(IPA_PKCS11_MECH_AES_KEY_WRAP_PAD_obj);
+	PyObject *P11_Helper_MECH_AES_KEY_WRAP_PAD_obj = PyInt_FromLong(CKM_AES_KEY_WRAP_PAD);
+	PyObject_SetAttrString(m, "MECH_AES_KEY_WRAP_PAD", P11_Helper_MECH_AES_KEY_WRAP_PAD_obj);
+	Py_XDECREF(P11_Helper_MECH_AES_KEY_WRAP_PAD_obj);
 
 	/* Key attributes */
-	PyObject *IPA_PKCS11_ATTR_CKA_ALWAYS_AUTHENTICATE_obj = PyInt_FromLong(CKA_ALWAYS_AUTHENTICATE);
-	PyObject_SetAttrString(m, "CKA_ALWAYS_AUTHENTICATE", IPA_PKCS11_ATTR_CKA_ALWAYS_AUTHENTICATE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_ALWAYS_AUTHENTICATE_obj);
+	PyObject *P11_Helper_ATTR_CKA_ALWAYS_AUTHENTICATE_obj = PyInt_FromLong(CKA_ALWAYS_AUTHENTICATE);
+	PyObject_SetAttrString(m, "CKA_ALWAYS_AUTHENTICATE", P11_Helper_ATTR_CKA_ALWAYS_AUTHENTICATE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_ALWAYS_AUTHENTICATE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_ALWAYS_SENSITIVE_obj = PyInt_FromLong(CKA_ALWAYS_SENSITIVE);
-	PyObject_SetAttrString(m, "CKA_ALWAYS_SENSITIVE", IPA_PKCS11_ATTR_CKA_ALWAYS_SENSITIVE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_ALWAYS_SENSITIVE_obj);
+	PyObject *P11_Helper_ATTR_CKA_ALWAYS_SENSITIVE_obj = PyInt_FromLong(CKA_ALWAYS_SENSITIVE);
+	PyObject_SetAttrString(m, "CKA_ALWAYS_SENSITIVE", P11_Helper_ATTR_CKA_ALWAYS_SENSITIVE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_ALWAYS_SENSITIVE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_COPYABLE_obj = PyInt_FromLong(CKA_COPYABLE);
-	PyObject_SetAttrString(m, "CKA_COPYABLE", IPA_PKCS11_ATTR_CKA_COPYABLE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_COPYABLE_obj);
+	PyObject *P11_Helper_ATTR_CKA_COPYABLE_obj = PyInt_FromLong(CKA_COPYABLE);
+	PyObject_SetAttrString(m, "CKA_COPYABLE", P11_Helper_ATTR_CKA_COPYABLE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_COPYABLE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_DECRYPT_obj = PyInt_FromLong(CKA_DECRYPT);
-	PyObject_SetAttrString(m, "CKA_DECRYPT", IPA_PKCS11_ATTR_CKA_DECRYPT_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_DECRYPT_obj);
+	PyObject *P11_Helper_ATTR_CKA_DECRYPT_obj = PyInt_FromLong(CKA_DECRYPT);
+	PyObject_SetAttrString(m, "CKA_DECRYPT", P11_Helper_ATTR_CKA_DECRYPT_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_DECRYPT_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_DERIVE_obj = PyInt_FromLong(CKA_DERIVE);
-	PyObject_SetAttrString(m, "CKA_DERIVE", IPA_PKCS11_ATTR_CKA_DERIVE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_DERIVE_obj);
+	PyObject *P11_Helper_ATTR_CKA_DERIVE_obj = PyInt_FromLong(CKA_DERIVE);
+	PyObject_SetAttrString(m, "CKA_DERIVE", P11_Helper_ATTR_CKA_DERIVE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_DERIVE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_ENCRYPT_obj = PyInt_FromLong(CKA_ENCRYPT);
-	PyObject_SetAttrString(m, "CKA_ENCRYPT", IPA_PKCS11_ATTR_CKA_ENCRYPT_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_ENCRYPT_obj);
+	PyObject *P11_Helper_ATTR_CKA_ENCRYPT_obj = PyInt_FromLong(CKA_ENCRYPT);
+	PyObject_SetAttrString(m, "CKA_ENCRYPT", P11_Helper_ATTR_CKA_ENCRYPT_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_ENCRYPT_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_EXTRACTABLE_obj = PyInt_FromLong(CKA_EXTRACTABLE);
-	PyObject_SetAttrString(m, "CKA_EXTRACTABLE", IPA_PKCS11_ATTR_CKA_EXTRACTABLE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_EXTRACTABLE_obj);
+	PyObject *P11_Helper_ATTR_CKA_EXTRACTABLE_obj = PyInt_FromLong(CKA_EXTRACTABLE);
+	PyObject_SetAttrString(m, "CKA_EXTRACTABLE", P11_Helper_ATTR_CKA_EXTRACTABLE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_EXTRACTABLE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_ID_obj = PyInt_FromLong(CKA_ID);
-	PyObject_SetAttrString(m, "CKA_ID", IPA_PKCS11_ATTR_CKA_ID_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_ID_obj);
+	PyObject *P11_Helper_ATTR_CKA_ID_obj = PyInt_FromLong(CKA_ID);
+	PyObject_SetAttrString(m, "CKA_ID", P11_Helper_ATTR_CKA_ID_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_ID_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_KEY_TYPE_obj = PyInt_FromLong(CKA_KEY_TYPE);
-	PyObject_SetAttrString(m, "CKA_KEY_TYPE", IPA_PKCS11_ATTR_CKA_KEY_TYPE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_KEY_TYPE_obj);
+	PyObject *P11_Helper_ATTR_CKA_KEY_TYPE_obj = PyInt_FromLong(CKA_KEY_TYPE);
+	PyObject_SetAttrString(m, "CKA_KEY_TYPE", P11_Helper_ATTR_CKA_KEY_TYPE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_KEY_TYPE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_LOCAL_obj = PyInt_FromLong(CKA_LOCAL);
-	PyObject_SetAttrString(m, "CKA_LOCAL", IPA_PKCS11_ATTR_CKA_LOCAL_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_LOCAL_obj);
+	PyObject *P11_Helper_ATTR_CKA_LOCAL_obj = PyInt_FromLong(CKA_LOCAL);
+	PyObject_SetAttrString(m, "CKA_LOCAL", P11_Helper_ATTR_CKA_LOCAL_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_LOCAL_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_MODIFIABLE_obj = PyInt_FromLong(CKA_MODIFIABLE);
-	PyObject_SetAttrString(m, "CKA_MODIFIABLE", IPA_PKCS11_ATTR_CKA_MODIFIABLE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_MODIFIABLE_obj);
+	PyObject *P11_Helper_ATTR_CKA_MODIFIABLE_obj = PyInt_FromLong(CKA_MODIFIABLE);
+	PyObject_SetAttrString(m, "CKA_MODIFIABLE", P11_Helper_ATTR_CKA_MODIFIABLE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_MODIFIABLE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_NEVER_EXTRACTABLE_obj = PyInt_FromLong(CKA_NEVER_EXTRACTABLE);
-	PyObject_SetAttrString(m, "CKA_NEVER_EXTRACTABLE", IPA_PKCS11_ATTR_CKA_NEVER_EXTRACTABLE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_NEVER_EXTRACTABLE_obj);
+	PyObject *P11_Helper_ATTR_CKA_NEVER_EXTRACTABLE_obj = PyInt_FromLong(CKA_NEVER_EXTRACTABLE);
+	PyObject_SetAttrString(m, "CKA_NEVER_EXTRACTABLE", P11_Helper_ATTR_CKA_NEVER_EXTRACTABLE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_NEVER_EXTRACTABLE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_PRIVATE_obj = PyInt_FromLong(CKA_PRIVATE);
-	PyObject_SetAttrString(m, "CKA_PRIVATE", IPA_PKCS11_ATTR_CKA_PRIVATE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_PRIVATE_obj);
+	PyObject *P11_Helper_ATTR_CKA_PRIVATE_obj = PyInt_FromLong(CKA_PRIVATE);
+	PyObject_SetAttrString(m, "CKA_PRIVATE", P11_Helper_ATTR_CKA_PRIVATE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_PRIVATE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_SENSITIVE_obj = PyInt_FromLong(CKA_SENSITIVE);
-	PyObject_SetAttrString(m, "CKA_SENSITIVE", IPA_PKCS11_ATTR_CKA_SENSITIVE_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_SENSITIVE_obj);
+	PyObject *P11_Helper_ATTR_CKA_SENSITIVE_obj = PyInt_FromLong(CKA_SENSITIVE);
+	PyObject_SetAttrString(m, "CKA_SENSITIVE", P11_Helper_ATTR_CKA_SENSITIVE_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_SENSITIVE_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_SIGN_obj = PyInt_FromLong(CKA_SIGN);
-	PyObject_SetAttrString(m, "CKA_SIGN", IPA_PKCS11_ATTR_CKA_SIGN_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_SIGN_obj);
+	PyObject *P11_Helper_ATTR_CKA_SIGN_obj = PyInt_FromLong(CKA_SIGN);
+	PyObject_SetAttrString(m, "CKA_SIGN", P11_Helper_ATTR_CKA_SIGN_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_SIGN_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_SIGN_RECOVER_obj = PyInt_FromLong(CKA_SIGN_RECOVER);
-	PyObject_SetAttrString(m, "CKA_SIGN_RECOVER", IPA_PKCS11_ATTR_CKA_SIGN_RECOVER_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_SIGN_RECOVER_obj);
+	PyObject *P11_Helper_ATTR_CKA_SIGN_RECOVER_obj = PyInt_FromLong(CKA_SIGN_RECOVER);
+	PyObject_SetAttrString(m, "CKA_SIGN_RECOVER", P11_Helper_ATTR_CKA_SIGN_RECOVER_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_SIGN_RECOVER_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_TRUSTED_obj = PyInt_FromLong(CKA_TRUSTED);
-	PyObject_SetAttrString(m, "CKA_TRUSTED", IPA_PKCS11_ATTR_CKA_TRUSTED_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_TRUSTED_obj);
+	PyObject *P11_Helper_ATTR_CKA_TRUSTED_obj = PyInt_FromLong(CKA_TRUSTED);
+	PyObject_SetAttrString(m, "CKA_TRUSTED", P11_Helper_ATTR_CKA_TRUSTED_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_TRUSTED_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_VERIFY_obj = PyInt_FromLong(CKA_VERIFY);
-	PyObject_SetAttrString(m, "CKA_VERIFY", IPA_PKCS11_ATTR_CKA_VERIFY_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_VERIFY_obj);
+	PyObject *P11_Helper_ATTR_CKA_VERIFY_obj = PyInt_FromLong(CKA_VERIFY);
+	PyObject_SetAttrString(m, "CKA_VERIFY", P11_Helper_ATTR_CKA_VERIFY_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_VERIFY_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_VERIFY_RECOVER_obj = PyInt_FromLong(CKA_VERIFY_RECOVER);
-	PyObject_SetAttrString(m, "CKA_VERIFY_RECOVER", IPA_PKCS11_ATTR_CKA_VERIFY_RECOVER_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_VERIFY_RECOVER_obj);
+	PyObject *P11_Helper_ATTR_CKA_VERIFY_RECOVER_obj = PyInt_FromLong(CKA_VERIFY_RECOVER);
+	PyObject_SetAttrString(m, "CKA_VERIFY_RECOVER", P11_Helper_ATTR_CKA_VERIFY_RECOVER_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_VERIFY_RECOVER_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_UNWRAP_obj = PyInt_FromLong(CKA_UNWRAP);
-	PyObject_SetAttrString(m, "CKA_UNWRAP", IPA_PKCS11_ATTR_CKA_UNWRAP_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_UNWRAP_obj);
+	PyObject *P11_Helper_ATTR_CKA_UNWRAP_obj = PyInt_FromLong(CKA_UNWRAP);
+	PyObject_SetAttrString(m, "CKA_UNWRAP", P11_Helper_ATTR_CKA_UNWRAP_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_UNWRAP_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_WRAP_obj = PyInt_FromLong(CKA_WRAP);
-	PyObject_SetAttrString(m, "CKA_WRAP", IPA_PKCS11_ATTR_CKA_WRAP_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_WRAP_obj);
+	PyObject *P11_Helper_ATTR_CKA_WRAP_obj = PyInt_FromLong(CKA_WRAP);
+	PyObject_SetAttrString(m, "CKA_WRAP", P11_Helper_ATTR_CKA_WRAP_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_WRAP_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_WRAP_WITH_TRUSTED_obj = PyInt_FromLong(CKA_WRAP_WITH_TRUSTED);
-	PyObject_SetAttrString(m, "CKA_WRAP_WITH_TRUSTED", IPA_PKCS11_ATTR_CKA_WRAP_WITH_TRUSTED_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_WRAP_WITH_TRUSTED_obj);
+	PyObject *P11_Helper_ATTR_CKA_WRAP_WITH_TRUSTED_obj = PyInt_FromLong(CKA_WRAP_WITH_TRUSTED);
+	PyObject_SetAttrString(m, "CKA_WRAP_WITH_TRUSTED", P11_Helper_ATTR_CKA_WRAP_WITH_TRUSTED_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_WRAP_WITH_TRUSTED_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_TOKEN_obj = PyInt_FromLong(CKA_TOKEN);
-	PyObject_SetAttrString(m, "CKA_TOKEN", IPA_PKCS11_ATTR_CKA_TOKEN_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_TOKEN_obj);
+	PyObject *P11_Helper_ATTR_CKA_TOKEN_obj = PyInt_FromLong(CKA_TOKEN);
+	PyObject_SetAttrString(m, "CKA_TOKEN", P11_Helper_ATTR_CKA_TOKEN_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_TOKEN_obj);
 
-	PyObject *IPA_PKCS11_ATTR_CKA_LABEL_obj = PyInt_FromLong(CKA_LABEL);
-	PyObject_SetAttrString(m, "CKA_LABEL", IPA_PKCS11_ATTR_CKA_LABEL_obj);
-	Py_XDECREF(IPA_PKCS11_ATTR_CKA_LABEL_obj);
+	PyObject *P11_Helper_ATTR_CKA_LABEL_obj = PyInt_FromLong(CKA_LABEL);
+	PyObject_SetAttrString(m, "CKA_LABEL", P11_Helper_ATTR_CKA_LABEL_obj);
+	Py_XDECREF(P11_Helper_ATTR_CKA_LABEL_obj);
 
 }
