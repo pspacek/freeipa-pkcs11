@@ -1796,7 +1796,7 @@ static PyMethodDef P11_Helper_methods[] = { { "finalize",
 };
 
 static PyTypeObject P11_HelperType = { PyObject_HEAD_INIT(NULL) 0, /*ob_size*/
-"ipap11helper.P11_Helper", /*tp_name*/
+"_ipap11helper.P11_Helper", /*tp_name*/
 sizeof(P11_Helper), /*tp_basicsize*/
 0, /*tp_itemsize*/
 (destructor) P11_Helper_dealloc, /*tp_dealloc*/
@@ -1841,7 +1841,7 @@ static PyMethodDef module_methods[] = { { NULL } /* Sentinel */
 #ifndef PyMODINIT_FUNC	/* declarations for DLL import/export */
 #define PyMODINIT_FUNC void
 #endif
-PyMODINIT_FUNC initipap11helper(void) {
+PyMODINIT_FUNC init_ipap11helper(void) {
     PyObject* m;
 
     if (PyType_Ready(&P11_HelperType) < 0)
@@ -1850,7 +1850,7 @@ PyMODINIT_FUNC initipap11helper(void) {
     /*
      * Setting up P11_Helper module
      */
-    m = Py_InitModule3("ipap11helper", module_methods,
+    m = Py_InitModule3("_ipap11helper", module_methods,
             "Example module that creates an extension type.");
 
     if (m == NULL)
@@ -1865,23 +1865,23 @@ PyMODINIT_FUNC initipap11helper(void) {
     /*
      * Setting up P11_Helper Exceptions
      */
-    ipap11helperException = PyErr_NewException("ipap11helper.Exception", NULL,
+    ipap11helperException = PyErr_NewException("_ipap11helper.Exception", NULL,
             NULL);
     Py_INCREF(ipap11helperException);
     PyModule_AddObject(m, "Exception", ipap11helperException);
 
-    ipap11helperError = PyErr_NewException("ipap11helper.Error",
+    ipap11helperError = PyErr_NewException("_ipap11helper.Error",
             ipap11helperException, NULL);
     Py_INCREF(ipap11helperError);
     PyModule_AddObject(m, "Error", ipap11helperError);
 
-    ipap11helperNotFound = PyErr_NewException("ipap11helper.NotFound",
+    ipap11helperNotFound = PyErr_NewException("_ipap11helper.NotFound",
             ipap11helperException, NULL);
     Py_INCREF(ipap11helperNotFound);
     PyModule_AddObject(m, "NotFound", ipap11helperNotFound);
 
     ipap11helperDuplicationError = PyErr_NewException(
-            "ipap11helper.DuplicationError", ipap11helperException, NULL);
+            "_ipap11helper.DuplicationError", ipap11helperException, NULL);
     Py_INCREF(ipap11helperDuplicationError);
     PyModule_AddObject(m, "DuplicationError", ipap11helperDuplicationError);
 

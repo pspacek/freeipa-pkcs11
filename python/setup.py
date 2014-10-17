@@ -7,7 +7,7 @@ python_header = os.path.join(get_python_inc(plat_specific=0), 'Python.h')
 if not os.path.exists(python_header):
     sys.exit("Cannot find Python development packages that provide Python.h")
 
-module = Extension('ipap11helper',
+module = Extension('_ipap11helper',
                    define_macros = [],
                    include_dirs = [],
                    libraries = ['dl', 'crypto', 'p11-kit'],
@@ -26,13 +26,13 @@ module = Extension('ipap11helper',
                    ],
                    sources = ['p11helper.c', 'library.c'])
 
-setup(name='ipap11helper',
+setup(name='_ipap11helper',
       version = '0.1',
       description = 'FreeIPA pkcs11 utils',
       author = 'Martin Basti, Petr Spacek',
       author_email = 'mbasti@redhat.com, pspacek@redhat.com',
       license = 'GPLv2+',
-      url='http://www.freeipa.org',  # TODO add more specific address
+      url='http://www.freeipa.org',
       long_description = """
       FreeIPA key manipulation utils.
 """,
