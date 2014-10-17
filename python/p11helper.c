@@ -650,31 +650,25 @@ P11_Helper_generate_master_key(P11_Helper* self, PyObject *args, PyObject *kwds)
     /* Process keyword boolean arguments */
     convert_py2bool(attrs, sizeof(attrs) / sizeof(PyObj2Bool_mapping_t));
 
-    CK_ATTRIBUTE symKeyTemplate[] =
-            { { CKA_ID, id, id_length }, { CKA_LABEL, label, label_length }, {
-                    CKA_TOKEN, &true, sizeof(CK_BBOOL) }, { CKA_VALUE_LEN,
-                    &key_length, sizeof(key_length) },
-                    //{CKA_COPYABLE, attrs[sec_en_cka_copyable].bool, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
-                    { CKA_DECRYPT, attrs[sec_en_cka_decrypt].bool,
-                            sizeof(CK_BBOOL) }, { CKA_DERIVE,
-                            attrs[sec_en_cka_derive].bool, sizeof(CK_BBOOL) }, {
-                            CKA_ENCRYPT, attrs[sec_en_cka_encrypt].bool,
-                            sizeof(CK_BBOOL) },
-                    { CKA_EXTRACTABLE, attrs[sec_en_cka_extractable].bool,
-                            sizeof(CK_BBOOL) },
-                    { CKA_MODIFIABLE, attrs[sec_en_cka_modifiable].bool,
-                            sizeof(CK_BBOOL) }, { CKA_PRIVATE,
-                            attrs[sec_en_cka_private].bool, sizeof(CK_BBOOL) },
-                    { CKA_SENSITIVE, attrs[sec_en_cka_sensitive].bool,
-                            sizeof(CK_BBOOL) }, { CKA_SIGN,
-                            attrs[sec_en_cka_sign].bool, sizeof(CK_BBOOL) }, {
-                            CKA_UNWRAP, attrs[sec_en_cka_unwrap].bool,
-                            sizeof(CK_BBOOL) }, { CKA_VERIFY,
-                            attrs[sec_en_cka_verify].bool, sizeof(CK_BBOOL) }, {
-                            CKA_WRAP, attrs[sec_en_cka_wrap].bool,
-                            sizeof(CK_BBOOL) }, { CKA_WRAP_WITH_TRUSTED,
-                            attrs[sec_en_cka_wrap_with_trusted].bool,
-                            sizeof(CK_BBOOL) } };
+    CK_ATTRIBUTE symKeyTemplate[] = {
+        { CKA_ID, id, id_length },
+        { CKA_LABEL, label, label_length },
+        { CKA_TOKEN, &true, sizeof(CK_BBOOL) },
+        { CKA_VALUE_LEN, &key_length, sizeof(key_length) },
+        //{CKA_COPYABLE, attrs[sec_en_cka_copyable].bool, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+        { CKA_DECRYPT, attrs[sec_en_cka_decrypt].bool, sizeof(CK_BBOOL) },
+        { CKA_DERIVE, attrs[sec_en_cka_derive].bool, sizeof(CK_BBOOL) },
+        { CKA_ENCRYPT, attrs[sec_en_cka_encrypt].bool, sizeof(CK_BBOOL) },
+        { CKA_EXTRACTABLE, attrs[sec_en_cka_extractable].bool, sizeof(CK_BBOOL) },
+        { CKA_MODIFIABLE, attrs[sec_en_cka_modifiable].bool, sizeof(CK_BBOOL) },
+        { CKA_PRIVATE, attrs[sec_en_cka_private].bool, sizeof(CK_BBOOL) },
+        { CKA_SENSITIVE, attrs[sec_en_cka_sensitive].bool, sizeof(CK_BBOOL) },
+        { CKA_SIGN, attrs[sec_en_cka_sign].bool, sizeof(CK_BBOOL) },
+        { CKA_UNWRAP, attrs[sec_en_cka_unwrap].bool, sizeof(CK_BBOOL) },
+        { CKA_VERIFY, attrs[sec_en_cka_verify].bool, sizeof(CK_BBOOL) },
+        { CKA_WRAP, attrs[sec_en_cka_wrap].bool, sizeof(CK_BBOOL) },
+        { CKA_WRAP_WITH_TRUSTED, attrs[sec_en_cka_wrap_with_trusted].bool, sizeof(CK_BBOOL) }
+    };
 
     rv = self->p11->C_GenerateKey(self->session, &mechanism, symKeyTemplate,
             sizeof(symKeyTemplate) / sizeof(CK_ATTRIBUTE), &master_key);
@@ -800,49 +794,39 @@ P11_Helper_generate_replica_key_pair(P11_Helper* self, PyObject *args,
             sizeof(attrs_priv) / sizeof(PyObj2Bool_mapping_t));
 
     CK_BYTE public_exponent[] = { 1, 0, 1 }; /* 65537 (RFC 6376 section 3.3.1)*/
-    CK_ATTRIBUTE publicKeyTemplate[] =
-            { { CKA_ID, id, id_length }, { CKA_LABEL, label, label_length }, {
-                    CKA_TOKEN, &true, sizeof(true) }, { CKA_MODULUS_BITS,
-                    &modulus_bits, sizeof(modulus_bits) }, {
-                    CKA_PUBLIC_EXPONENT, public_exponent, 3 },
-                    //{CKA_COPYABLE, attrs_pub[pub_en_cka_copyable].bool, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
-                    { CKA_DERIVE, attrs_pub[pub_en_cka_derive].bool,
-                            sizeof(CK_BBOOL) },
-                    { CKA_ENCRYPT, attrs_pub[pub_en_cka_encrypt].bool,
-                            sizeof(CK_BBOOL) }, { CKA_MODIFIABLE,
-                            attrs_pub[pub_en_cka_modifiable].bool,
-                            sizeof(CK_BBOOL) },
-                    { CKA_PRIVATE, attrs_pub[pub_en_cka_private].bool,
-                            sizeof(CK_BBOOL) },
-                    { CKA_TRUSTED, attrs_pub[pub_en_cka_trusted].bool,
-                            sizeof(CK_BBOOL) },
-                    { CKA_VERIFY, attrs_pub[pub_en_cka_verify].bool,
-                            sizeof(CK_BBOOL) }, { CKA_VERIFY_RECOVER,
-                            attrs_pub[pub_en_cka_verify_recover].bool,
-                            sizeof(CK_BBOOL) }, { CKA_WRAP,
-                            attrs_pub[pub_en_cka_wrap].bool, sizeof(CK_BBOOL) }, };
-    CK_ATTRIBUTE privateKeyTemplate[] = { { CKA_ID, id, id_length }, {
-            CKA_LABEL, label, label_length },
-            { CKA_TOKEN, &true, sizeof(true) }, { CKA_ALWAYS_AUTHENTICATE,
-                    attrs_priv[priv_en_cka_always_authenticate].bool,
-                    sizeof(CK_BBOOL) },
-            //{CKA_COPYABLE, attrs_priv[priv_en_cka_copyable].bool, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
-            { CKA_DECRYPT, attrs_priv[priv_en_cka_decrypt].bool,
-                    sizeof(CK_BBOOL) }, { CKA_DERIVE,
-                    attrs_priv[priv_en_cka_derive].bool, sizeof(CK_BBOOL) }, {
-                    CKA_EXTRACTABLE, attrs_priv[priv_en_cka_extractable].bool,
-                    sizeof(CK_BBOOL) }, { CKA_MODIFIABLE,
-                    attrs_priv[priv_en_cka_modifiable].bool, sizeof(CK_BBOOL) },
-            { CKA_PRIVATE, attrs_priv[priv_en_cka_private].bool,
-                    sizeof(CK_BBOOL) }, { CKA_SENSITIVE,
-                    attrs_priv[priv_en_cka_sensitive].bool, sizeof(CK_BBOOL) },
-            { CKA_SIGN, attrs_priv[priv_en_cka_sign].bool, sizeof(CK_BBOOL) }, {
-                    CKA_SIGN_RECOVER, attrs_priv[priv_en_cka_sign].bool,
-                    sizeof(CK_BBOOL) }, { CKA_UNWRAP,
-                    attrs_priv[priv_en_cka_unwrap].bool, sizeof(CK_BBOOL) }, {
-                    CKA_WRAP_WITH_TRUSTED,
-                    attrs_priv[priv_en_cka_wrap_with_trusted].bool,
-                    sizeof(CK_BBOOL) } };
+    CK_ATTRIBUTE publicKeyTemplate[] = {
+        { CKA_ID, id, id_length },
+        { CKA_LABEL, label, label_length },
+        { CKA_TOKEN, &true, sizeof(true) },
+        { CKA_MODULUS_BITS, &modulus_bits, sizeof(modulus_bits) },
+        { CKA_PUBLIC_EXPONENT, public_exponent, 3 },
+        //{CKA_COPYABLE, attrs_pub[pub_en_cka_copyable].bool, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+        { CKA_DERIVE, attrs_pub[pub_en_cka_derive].bool, sizeof(CK_BBOOL) },
+        { CKA_ENCRYPT, attrs_pub[pub_en_cka_encrypt].bool, sizeof(CK_BBOOL) },
+        { CKA_MODIFIABLE, attrs_pub[pub_en_cka_modifiable].bool, sizeof(CK_BBOOL) },
+        { CKA_PRIVATE, attrs_pub[pub_en_cka_private].bool, sizeof(CK_BBOOL) },
+        { CKA_TRUSTED, attrs_pub[pub_en_cka_trusted].bool, sizeof(CK_BBOOL) },
+        { CKA_VERIFY, attrs_pub[pub_en_cka_verify].bool, sizeof(CK_BBOOL) },
+        { CKA_VERIFY_RECOVER, attrs_pub[pub_en_cka_verify_recover].bool, sizeof(CK_BBOOL) },
+        { CKA_WRAP, attrs_pub[pub_en_cka_wrap].bool, sizeof(CK_BBOOL) }, };
+
+    CK_ATTRIBUTE privateKeyTemplate[] = {
+        { CKA_ID, id, id_length },
+        { CKA_LABEL, label, label_length },
+        { CKA_TOKEN, &true, sizeof(true) },
+        { CKA_ALWAYS_AUTHENTICATE, attrs_priv[priv_en_cka_always_authenticate].bool, sizeof(CK_BBOOL) },
+        //{CKA_COPYABLE, attrs_priv[priv_en_cka_copyable].bool, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+        { CKA_DECRYPT, attrs_priv[priv_en_cka_decrypt].bool, sizeof(CK_BBOOL) },
+        { CKA_DERIVE,  attrs_priv[priv_en_cka_derive].bool, sizeof(CK_BBOOL) },
+        { CKA_EXTRACTABLE, attrs_priv[priv_en_cka_extractable].bool, sizeof(CK_BBOOL) },
+        { CKA_MODIFIABLE, attrs_priv[priv_en_cka_modifiable].bool, sizeof(CK_BBOOL) },
+        { CKA_PRIVATE, attrs_priv[priv_en_cka_private].bool, sizeof(CK_BBOOL) },
+        { CKA_SENSITIVE, attrs_priv[priv_en_cka_sensitive].bool, sizeof(CK_BBOOL) },
+        { CKA_SIGN, attrs_priv[priv_en_cka_sign].bool, sizeof(CK_BBOOL) },
+        { CKA_SIGN_RECOVER, attrs_priv[priv_en_cka_sign].bool, sizeof(CK_BBOOL) },
+        { CKA_UNWRAP, attrs_priv[priv_en_cka_unwrap].bool, sizeof(CK_BBOOL) },
+        { CKA_WRAP_WITH_TRUSTED, attrs_priv[priv_en_cka_wrap_with_trusted].bool, sizeof(CK_BBOOL) }
+    };
 
     rv = self->p11->C_GenerateKeyPair(self->session, &mechanism,
             publicKeyTemplate, sizeof(publicKeyTemplate) / sizeof(CK_ATTRIBUTE),
@@ -1224,22 +1208,22 @@ P11_Helper_import_RSA_public_key(P11_Helper* self, CK_UTF8CHAR *label,
     }
 
     CK_ATTRIBUTE template[] = {
-            { CKA_ID, id, id_length },
-            { CKA_CLASS, &class, sizeof(class) },
-            { CKA_KEY_TYPE, &keyType, sizeof(keyType) },
-            { CKA_TOKEN, cka_token, sizeof(CK_BBOOL) },
-            { CKA_LABEL, label, label_length },
-            { CKA_MODULUS, modulus, modulus_len },
-            { CKA_PUBLIC_EXPONENT, exponent, exponent_len },
-            //{CKA_COPYABLE, cka_copyable, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
-            { CKA_DERIVE, cka_derive, sizeof(CK_BBOOL) },
-            { CKA_ENCRYPT, cka_encrypt, sizeof(CK_BBOOL) },
-            { CKA_MODIFIABLE, cka_modifiable, sizeof(CK_BBOOL) },
-            { CKA_PRIVATE, cka_private, sizeof(CK_BBOOL) },
-            { CKA_TRUSTED, cka_trusted, sizeof(CK_BBOOL) },
-            { CKA_VERIFY, cka_verify, sizeof(CK_BBOOL) },
-            { CKA_VERIFY_RECOVER, cka_verify_recover, sizeof(CK_BBOOL) },
-            { CKA_WRAP, cka_wrap, sizeof(CK_BBOOL) }, };
+        { CKA_ID, id, id_length },
+        { CKA_CLASS, &class, sizeof(class) },
+        { CKA_KEY_TYPE, &keyType, sizeof(keyType) },
+        { CKA_TOKEN, cka_token, sizeof(CK_BBOOL) },
+        { CKA_LABEL, label, label_length },
+        { CKA_MODULUS, modulus, modulus_len },
+        { CKA_PUBLIC_EXPONENT, exponent, exponent_len },
+        //{CKA_COPYABLE, cka_copyable, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+        { CKA_DERIVE, cka_derive, sizeof(CK_BBOOL) },
+        { CKA_ENCRYPT, cka_encrypt, sizeof(CK_BBOOL) },
+        { CKA_MODIFIABLE, cka_modifiable, sizeof(CK_BBOOL) },
+        { CKA_PRIVATE, cka_private, sizeof(CK_BBOOL) },
+        { CKA_TRUSTED, cka_trusted, sizeof(CK_BBOOL) },
+        { CKA_VERIFY, cka_verify, sizeof(CK_BBOOL) },
+        { CKA_VERIFY_RECOVER, cka_verify_recover, sizeof(CK_BBOOL) },
+        { CKA_WRAP, cka_wrap, sizeof(CK_BBOOL) }, };
     CK_OBJECT_HANDLE object;
 
     rv = self->p11->C_CreateObject(self->session, template,
@@ -1480,48 +1464,22 @@ P11_Helper_import_wrapped_secret_key(P11_Helper* self, PyObject *args,
         { CKA_CLASS, &key_class, sizeof(key_class) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
         { CKA_ID, id, id_length },
-                    {
-                    CKA_LABEL, label, label_length },
-                    {
-                    CKA_TOKEN, &true, sizeof(CK_BBOOL) },
-                    //{CKA_COPYABLE, attrs[sec_en_cka_copyable].bool, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
-                    {
-                            CKA_DECRYPT,
-                            attrs[sec_en_cka_decrypt].bool,
-                            sizeof(CK_BBOOL) },
-                    {
-                    CKA_DERIVE, attrs[sec_en_cka_derive].bool, sizeof(CK_BBOOL) },
-                    {
-                            CKA_ENCRYPT,
-                            attrs[sec_en_cka_encrypt].bool,
-                            sizeof(CK_BBOOL) },
-                    {
-                            CKA_EXTRACTABLE,
-                            attrs[sec_en_cka_extractable].bool,
-                            sizeof(CK_BBOOL) },
-                    {
-                            CKA_MODIFIABLE,
-                            attrs[sec_en_cka_modifiable].bool,
-                            sizeof(CK_BBOOL) },
-                    {
-                            CKA_PRIVATE,
-                            attrs[sec_en_cka_private].bool,
-                            sizeof(CK_BBOOL) },
-                    {
-                            CKA_SENSITIVE,
-                            attrs[sec_en_cka_sensitive].bool,
-                            sizeof(CK_BBOOL) },
-                    { CKA_SIGN, attrs[sec_en_cka_sign].bool, sizeof(CK_BBOOL) },
-                    {
-                    CKA_UNWRAP, attrs[sec_en_cka_unwrap].bool, sizeof(CK_BBOOL) },
-                    {
-                    CKA_VERIFY, attrs[sec_en_cka_verify].bool, sizeof(CK_BBOOL) },
-                    {
-                    CKA_WRAP, attrs[sec_en_cka_wrap].bool, sizeof(CK_BBOOL) },
-                    {
-                            CKA_WRAP_WITH_TRUSTED,
-                            attrs[sec_en_cka_wrap_with_trusted].bool,
-                            sizeof(CK_BBOOL) } };
+        { CKA_LABEL, label, label_length },
+        { CKA_TOKEN, &true, sizeof(CK_BBOOL) },
+        //{CKA_COPYABLE, attrs[sec_en_cka_copyable].bool, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
+        { CKA_DECRYPT, attrs[sec_en_cka_decrypt].bool, sizeof(CK_BBOOL) },
+        { CKA_DERIVE, attrs[sec_en_cka_derive].bool, sizeof(CK_BBOOL) },
+        { CKA_ENCRYPT, attrs[sec_en_cka_encrypt].bool, sizeof(CK_BBOOL) },
+        { CKA_EXTRACTABLE, attrs[sec_en_cka_extractable].bool, sizeof(CK_BBOOL) },
+        { CKA_MODIFIABLE, attrs[sec_en_cka_modifiable].bool, sizeof(CK_BBOOL) },
+        { CKA_PRIVATE, attrs[sec_en_cka_private].bool, sizeof(CK_BBOOL) },
+        { CKA_SENSITIVE, attrs[sec_en_cka_sensitive].bool, sizeof(CK_BBOOL) },
+        { CKA_SIGN, attrs[sec_en_cka_sign].bool, sizeof(CK_BBOOL) },
+        { CKA_UNWRAP, attrs[sec_en_cka_unwrap].bool, sizeof(CK_BBOOL) },
+        { CKA_VERIFY, attrs[sec_en_cka_verify].bool, sizeof(CK_BBOOL) },
+        { CKA_WRAP, attrs[sec_en_cka_wrap].bool, sizeof(CK_BBOOL) },
+        { CKA_WRAP_WITH_TRUSTED, attrs[sec_en_cka_wrap_with_trusted].bool, sizeof(CK_BBOOL) }
+    };
 
     rv = self->p11->C_UnwrapKey(self->session, &wrapping_mech,
             unwrapping_key_object, wrapped_key, wrapped_key_len, template,
@@ -1530,7 +1488,7 @@ P11_Helper_import_wrapped_secret_key(P11_Helper* self, PyObject *args,
         return NULL;
     }
 
-    return PyLong_FromUnsignedLong(unwrapped_key_object);
+    return Py_BuildValue("k", unwrapped_key_object);
 
 }
 
@@ -1614,30 +1572,25 @@ P11_Helper_import_wrapped_private_key(P11_Helper* self, PyObject *args,
     convert_py2bool(attrs_priv,
             sizeof(attrs_priv) / sizeof(PyObj2Bool_mapping_t));
 
-    CK_ATTRIBUTE template[] = { { CKA_CLASS, &key_class, sizeof(key_class) }, {
-            CKA_KEY_TYPE, &key_type, sizeof(key_type) },
-            { CKA_ID, id, id_length }, { CKA_LABEL, label, label_length }, {
-                    CKA_TOKEN, &true, sizeof(CK_BBOOL) }, {
-                    CKA_ALWAYS_AUTHENTICATE,
-                    attrs_priv[priv_en_cka_always_authenticate].bool,
-                    sizeof(CK_BBOOL) },
+    CK_ATTRIBUTE template[] = {
+            { CKA_CLASS, &key_class, sizeof(key_class) },
+            { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+            { CKA_ID, id, id_length },
+            { CKA_LABEL, label, label_length },
+            { CKA_TOKEN, &true, sizeof(CK_BBOOL) },
+            { CKA_ALWAYS_AUTHENTICATE, attrs_priv[priv_en_cka_always_authenticate].bool, sizeof(CK_BBOOL) },
             //{CKA_COPYABLE, attrs_priv[priv_en_cka_copyable].bool, sizeof(CK_BBOOL)}, //TODO Softhsm doesn't support it
-            { CKA_DECRYPT, attrs_priv[priv_en_cka_decrypt].bool,
-                    sizeof(CK_BBOOL) }, { CKA_DERIVE,
-                    attrs_priv[priv_en_cka_derive].bool, sizeof(CK_BBOOL) }, {
-                    CKA_EXTRACTABLE, attrs_priv[priv_en_cka_extractable].bool,
-                    sizeof(CK_BBOOL) }, { CKA_MODIFIABLE,
-                    attrs_priv[priv_en_cka_modifiable].bool, sizeof(CK_BBOOL) },
-            { CKA_PRIVATE, attrs_priv[priv_en_cka_private].bool,
-                    sizeof(CK_BBOOL) }, { CKA_SENSITIVE,
-                    attrs_priv[priv_en_cka_sensitive].bool, sizeof(CK_BBOOL) },
-            { CKA_SIGN, attrs_priv[priv_en_cka_sign].bool, sizeof(CK_BBOOL) }, {
-                    CKA_SIGN_RECOVER, attrs_priv[priv_en_cka_sign].bool,
-                    sizeof(CK_BBOOL) }, { CKA_UNWRAP,
-                    attrs_priv[priv_en_cka_unwrap].bool, sizeof(CK_BBOOL) }, {
-                    CKA_WRAP_WITH_TRUSTED,
-                    attrs_priv[priv_en_cka_wrap_with_trusted].bool,
-                    sizeof(CK_BBOOL) } };
+            { CKA_DECRYPT, attrs_priv[priv_en_cka_decrypt].bool, sizeof(CK_BBOOL) },
+            { CKA_DERIVE, attrs_priv[priv_en_cka_derive].bool, sizeof(CK_BBOOL) },
+            { CKA_EXTRACTABLE, attrs_priv[priv_en_cka_extractable].bool, sizeof(CK_BBOOL) },
+            { CKA_MODIFIABLE,  attrs_priv[priv_en_cka_modifiable].bool, sizeof(CK_BBOOL) },
+            { CKA_PRIVATE, attrs_priv[priv_en_cka_private].bool, sizeof(CK_BBOOL) },
+            { CKA_SENSITIVE, attrs_priv[priv_en_cka_sensitive].bool, sizeof(CK_BBOOL) },
+            { CKA_SIGN, attrs_priv[priv_en_cka_sign].bool, sizeof(CK_BBOOL) },
+            { CKA_SIGN_RECOVER, attrs_priv[priv_en_cka_sign].bool, sizeof(CK_BBOOL) },
+            { CKA_UNWRAP, attrs_priv[priv_en_cka_unwrap].bool, sizeof(CK_BBOOL) },
+            { CKA_WRAP_WITH_TRUSTED, attrs_priv[priv_en_cka_wrap_with_trusted].bool, sizeof(CK_BBOOL) }
+    };
 
     rv = self->p11->C_UnwrapKey(self->session, &wrapping_mech,
             unwrapping_key_object, wrapped_key, wrapped_key_len, template,
