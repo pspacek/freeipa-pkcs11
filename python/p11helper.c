@@ -1803,7 +1803,7 @@ P11_Helper_get_attribute(P11_Helper* self, PyObject *args, PyObject *kwds) {
             break;
         case CKA_KEY_TYPE:
             /* unsigned long */
-            ret = Py_BuildValue("k", (unsigned long *) value);
+            ret = Py_BuildValue("k", *(unsigned long *) value);
             break;
         default:
             ret = NULL;
