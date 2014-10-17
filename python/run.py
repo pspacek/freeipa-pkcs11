@@ -1,10 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import os
+import os.path
 import logging
 import _ipap11helper
 from _ipap11helper import P11_Helper
 import sys
+import subprocess
 
 def str_to_hex(s):
     return ''.join("{:02x}".format(ord(c)) for c in s)
@@ -12,6 +15,13 @@ def str_to_hex(s):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger('t')
+
+    # init token before the test
+    script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    os.environ['SOFTHSM2_CONF']=os.path.join(script_dir, 'tokens', 'softhsm2.conf')
+    os.chdir(script_dir)
+    subprocess.check_call(['softhsm2-util', '--init-token', '--slot', '0', '--label', 'test', '--pin', '1234', '--so-pin', '1234'])
+
     p11 = P11_Helper(0, "1234", "/usr/lib64/pkcs11/libsofthsm2.so")
 
     # master key
