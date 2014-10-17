@@ -368,16 +368,52 @@ int _find_key(P11_Helper* self, CK_ATTRIBUTE_PTR template,
  * and set the exception
  *
  */
-int _id_label_exists(P11_Helper* self, CK_BYTE_PTR id, CK_ULONG id_len,
-        CK_BYTE_PTR label, CK_ULONG label_len, CK_OBJECT_CLASS class) {
+int _id_exists(P11_Helper* self, CK_BYTE_PTR id, CK_ULONG id_len,
+        CK_OBJECT_CLASS class) {
 
     CK_RV rv;
     CK_ULONG object_count = 0;
     CK_OBJECT_HANDLE result_object = 0;
-    CK_ATTRIBUTE template[] = { { CKA_ID, id, id_len }, { CKA_LABEL, label,
-            label_len }, { CKA_CLASS, &class, sizeof(CK_OBJECT_CLASS) }, };
+    CK_OBJECT_CLASS class_sec = CKO_SECRET_KEY;
 
-    rv = self->p11->C_FindObjectsInit(self->session, template, 3);
+    CK_ATTRIBUTE template_pub_priv[] = { { CKA_ID, id, id_len },
+            { CKA_CLASS, &class, sizeof(CK_OBJECT_CLASS) }, };
+
+    CK_ATTRIBUTE template_sec[] = { { CKA_ID, id, id_len },
+            { CKA_CLASS, &class_sec, sizeof(CK_OBJECT_CLASS) }, };
+
+    CK_ATTRIBUTE template_id[] = { { CKA_ID, id, id_len },};
+
+    /*
+     * Only one secret key with same ID is allowed
+     */
+    if (class == CKO_SECRET_KEY){
+        rv = self->p11->C_FindObjectsInit(self->session, template_id, 1);
+        if (!check_return_value(rv, "id, label exists init"))
+            return -1;
+
+        rv = self->p11->C_FindObjects(self->session, &result_object, 1,
+                &object_count);
+        if (!check_return_value(rv, "id, label exists"))
+            return -1;
+
+        rv = self->p11->C_FindObjectsFinal(self->session);
+        if (!check_return_value(rv, "id, label exists final"))
+            return -1;
+
+        if (object_count > 0) {
+            /* object found */
+            return 1;
+        }
+        return 0;
+    }
+
+    /*
+     *  Public and private keys can share one ID, but
+     */
+
+    /* test if secret key with same ID exists*/
+    rv = self->p11->C_FindObjectsInit(self->session, template_sec, 2);
     if (!check_return_value(rv, "id, label exists init"))
         return -1;
 
@@ -390,10 +426,32 @@ int _id_label_exists(P11_Helper* self, CK_BYTE_PTR id, CK_ULONG id_len,
     if (!check_return_value(rv, "id, label exists final"))
         return -1;
 
-    if (object_count == 0) {
-        return 0;
+    if (object_count > 0) {
+        /* object found */
+        return 1;
     }
-    return 1; /* Object found*/
+
+    /* test if pub/private key with same id exists*/
+    object_count = 0;
+
+    rv = self->p11->C_FindObjectsInit(self->session, template_pub_priv, 2);
+    if (!check_return_value(rv, "id, label exists init"))
+        return -1;
+
+    rv = self->p11->C_FindObjects(self->session, &result_object, 1,
+            &object_count);
+    if (!check_return_value(rv, "id, label exists"))
+        return -1;
+
+    rv = self->p11->C_FindObjectsFinal(self->session);
+    if (!check_return_value(rv, "id, label exists final"))
+        return -1;
+
+    if (object_count > 0) {
+        return 1; /* Object found*/
+    }
+
+    return 0; /* Object not found*/
 }
 
 /***********************************************************************
@@ -580,11 +638,10 @@ P11_Helper_generate_master_key(P11_Helper* self, PyObject *args, PyObject *kwds)
 
     //TODO free label if check failed
     //TODO is label freed inside???? dont we use freed value later
-    r = _id_label_exists(self, id, id_length, label, label_length,
-            CKO_SECRET_KEY);
+    r = _id_exists(self, id, id_length, CKO_SECRET_KEY);
     if (r == 1) {
         PyErr_SetString(ipap11helperDuplicationError,
-                "Master key with same ID and LABEL already exists");
+                "Master key with same ID already exists");
         return NULL;
     } else if (r == -1) {
         return NULL;
@@ -718,21 +775,19 @@ P11_Helper_generate_replica_key_pair(P11_Helper* self, PyObject *args,
 
     //TODO free variables
 
-    r = _id_label_exists(self, id, id_length, label, label_length,
-            CKO_PRIVATE_KEY);
+    r = _id_exists(self, id, id_length, CKO_PRIVATE_KEY);
     if (r == 1) {
         PyErr_SetString(ipap11helperDuplicationError,
-                "Private key with same ID and LABEL already exists");
+                "Private key with same ID already exists");
         return NULL;
     } else if (r == -1) {
         return NULL;
     }
 
-    r = _id_label_exists(self, id, id_length, label, label_length,
-            CKO_PUBLIC_KEY);
+    r = _id_exists(self, id, id_length, CKO_PUBLIC_KEY);
     if (r == 1) {
         PyErr_SetString(ipap11helperDuplicationError,
-                "Public key with same ID and LABEL already exists");
+                "Public key with same ID already exists");
         return NULL;
     } else if (r == -1) {
         return NULL;
@@ -1247,11 +1302,10 @@ P11_Helper_import_public_key(P11_Helper* self, PyObject *args, PyObject *kwds) {
             &label_length);
     Py_XDECREF(label_unicode);
 
-    r = _id_label_exists(self, id, id_length, label, label_length,
-            CKO_PUBLIC_KEY);
+    r = _id_exists(self, id, id_length, CKO_PUBLIC_KEY);
     if (r == 1) {
         PyErr_SetString(ipap11helperDuplicationError,
-                "Public key with same ID and LABEL already exists");
+                "Public key with same ID already exists");
         return NULL;
     } else if (r == -1) {
         return NULL;
@@ -1407,10 +1461,10 @@ P11_Helper_import_wrapped_secret_key(P11_Helper* self, PyObject *args,
             &label_length); //TODO verify signed/unsigned
     Py_XDECREF(label_unicode);
 
-    r = _id_label_exists(self, id, id_length, label, label_length, key_class);
+    r = _id_exists(self, id, id_length, key_class);
     if (r == 1) {
         PyErr_SetString(ipap11helperDuplicationError,
-                "Secret key with same ID and LABEL already exists");
+                "Secret key with same ID already exists");
         return NULL;
     } else if (r == -1) {
         return NULL;
@@ -1524,11 +1578,10 @@ P11_Helper_import_wrapped_private_key(P11_Helper* self, PyObject *args,
             &label_length); //TODO verify signed/unsigned
     Py_XDECREF(label_unicode);
 
-    r = _id_label_exists(self, id, id_length, label, label_length,
-            CKO_SECRET_KEY);
+    r = _id_exists(self, id, id_length, CKO_SECRET_KEY);
     if (r == 1) {
         PyErr_SetString(ipap11helperDuplicationError,
-                "Secret key with same ID and LABEL already exists");
+                "Secret key with same ID already exists");
         return NULL;
     } else if (r == -1) {
         return NULL;
