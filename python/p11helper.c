@@ -1247,7 +1247,7 @@ P11_Helper_import_RSA_public_key(P11_Helper* self, CK_UTF8CHAR *label,
     if (rsa != NULL)
         RSA_free(rsa);
 
-    return PyLong_FromUnsignedLong(object);
+    return Py_BuildValue("k", object);
 }
 
 /**
@@ -1797,6 +1797,8 @@ P11_Helper_get_attribute(P11_Helper* self, PyObject *args, PyObject *kwds) {
             /* unicode string */
             ret = char_array_to_unicode(value, template[0].ulValueLen);
             break;
+	case CKA_MODULUS:
+	case CKA_PUBLIC_EXPONENT:
         case CKA_ID:
             /* byte arrays */
             ret = Py_BuildValue("s#", value, template[0].ulValueLen);
@@ -2043,6 +2045,10 @@ PyMODINIT_FUNC init_ipap11helper(void) {
             P11_Helper_ATTR_CKA_MODIFIABLE_obj);
     Py_XDECREF(P11_Helper_ATTR_CKA_MODIFIABLE_obj);
 
+    PyObject *P11_Helper_ATTR_CKA_MODULUS_obj = PyInt_FromLong(CKA_MODULUS);
+    PyObject_SetAttrString(m, "CKA_MODULUS", P11_Helper_ATTR_CKA_MODULUS_obj);
+    Py_XDECREF(P11_Helper_ATTR_CKA_MODULUS_obj);
+
     PyObject *P11_Helper_ATTR_CKA_NEVER_EXTRACTABLE_obj = PyInt_FromLong(
             CKA_NEVER_EXTRACTABLE);
     PyObject_SetAttrString(m, "CKA_NEVER_EXTRACTABLE",
@@ -2052,6 +2058,12 @@ PyMODINIT_FUNC init_ipap11helper(void) {
     PyObject *P11_Helper_ATTR_CKA_PRIVATE_obj = PyInt_FromLong(CKA_PRIVATE);
     PyObject_SetAttrString(m, "CKA_PRIVATE", P11_Helper_ATTR_CKA_PRIVATE_obj);
     Py_XDECREF(P11_Helper_ATTR_CKA_PRIVATE_obj);
+
+    PyObject *P11_Helper_ATTR_CKA_PUBLIC_EXPONENT_obj
+	    = PyInt_FromLong(CKA_PUBLIC_EXPONENT);
+    PyObject_SetAttrString(m, "CKA_PUBLIC_EXPONENT",
+		    P11_Helper_ATTR_CKA_PUBLIC_EXPONENT_obj);
+    Py_XDECREF(P11_Helper_ATTR_CKA_PUBLIC_EXPONENT_obj);
 
     PyObject *P11_Helper_ATTR_CKA_SENSITIVE_obj = PyInt_FromLong(CKA_SENSITIVE);
     PyObject_SetAttrString(m, "CKA_SENSITIVE",

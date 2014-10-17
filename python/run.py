@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+from binascii import hexlify
 import os
 import os.path
 import logging
@@ -13,7 +14,7 @@ def str_to_hex(s):
     return ''.join("{:02x}".format(ord(c)) for c in s)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     log = logging.getLogger('t')
 
     # init token before the test
@@ -51,18 +52,28 @@ if __name__ == '__main__':
     test_list = p11.find_keys(_ipap11helper.KEY_CLASS_PUBLIC_KEY, label=u"replica666")
     assert len(test_list) == 0, "list should be empty because label replica666 should not exist"
 
+    # master key
     key3 = p11.find_keys(_ipap11helper.KEY_CLASS_SECRET_KEY, label=u"žžž-aest", id="m")[0]
-    log.debug("Got key %s", key3)
+    log.debug("Got master key %s", key3)
     #key3_attrs = p11.export_secret_key(key3)
     #print "Export secret key: ", str_to_hex(key3_attrs["value"])
 
     pub = p11.export_public_key(rep1_pub)
-    log.debug("Public key %s", str_to_hex(pub))
+    log.debug("Exported public key %s", str_to_hex(pub))
     f = open("public_key.asn1.der", "wb")
     f.write(pub)
     f.close()
-    log.debug('imported %s', p11.import_public_key(u'test_import', '1245', pub, 
-                                            cka_wrap=True))
+
+    rep1_pub_import = p11.import_public_key(u'replica1-import', 'replica1-import-id', pub, 
+                                    cka_wrap=True)
+    log.debug('imported replica 1 public key: %s', rep1_pub_import)
+
+    rep1_modulus_orig = p11.get_attribute(rep1_pub, _ipap11helper.CKA_MODULUS)
+    rep1_modulus_import = p11.get_attribute(rep1_pub_import, _ipap11helper.CKA_MODULUS)
+    log.debug('rep1_modulus_orig   = 0x%s', hexlify(rep1_modulus_orig))
+    log.debug('rep1_modulus_import = 0x%s', hexlify(rep1_modulus_import))
+    assert rep1_modulus_import == rep1_modulus_orig
+
 
     log.debug("wrapping dnssec priv key by master key")
     wrapped_priv = p11.export_wrapped_key(rep2_priv, key3, 
@@ -94,7 +105,7 @@ if __name__ == '__main__':
         log.debug("OK: duplication: %s", e)
     else:
         raise AssertionError("FAIL: _ipap11helper.DuplicationError expected")
-    
+
     objects = p11.find_keys(_ipap11helper.KEY_CLASS_SECRET_KEY, label=u"žžž-aest")
     log.debug("find: objects=%s", repr(objects))
 
