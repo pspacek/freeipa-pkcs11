@@ -5,7 +5,7 @@ CFLAGS	= -I/usr/include/p11-kit-1/p11-kit $(OPT) $(W)
 ifdef PKCS11LIB
 	CFLAGS:=$(CFLAGS) -DPKCS11LIB=\"$(PKCS11LIB)\"
 else
-	CFLAGS:=$(CFLAGS) -DPKCS11LIB=\"/usr/lib64/softhsm/libsofthsm2.so\"
+	CFLAGS:=$(CFLAGS) -DPKCS11LIB=\"/usr/lib64/pkcs11/libsofthsm2.so\"
 endif
 LDLIBS	= -ldl -lcrypto
 SOLIBS	=
