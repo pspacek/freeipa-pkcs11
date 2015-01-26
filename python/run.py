@@ -86,6 +86,10 @@ if __name__ == '__main__':
     wrapped_priv = p11.export_wrapped_key(rep2_priv, key3, 
                                       _ipap11helper.MECH_AES_KEY_WRAP_PAD)
     log.debug("wrapped_dnssec priv key: %s", str_to_hex(wrapped_priv))
+    f = open("wrapped_priv.der", "wb")
+    f.write(wrapped_priv)
+    f.close()
+
     imported_priv = p11.import_wrapped_private_key(u'test_import_wrapped_priv',
                                               '666',
                                               wrapped_priv, key3,
