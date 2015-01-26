@@ -68,11 +68,18 @@ if __name__ == '__main__':
                                     cka_wrap=True)
     log.debug('imported replica 1 public key: %s', rep1_pub_import)
 
+    # test public key import
     rep1_modulus_orig = p11.get_attribute(rep1_pub, _ipap11helper.CKA_MODULUS)
     rep1_modulus_import = p11.get_attribute(rep1_pub_import, _ipap11helper.CKA_MODULUS)
     log.debug('rep1_modulus_orig   = 0x%s', hexlify(rep1_modulus_orig))
     log.debug('rep1_modulus_import = 0x%s', hexlify(rep1_modulus_import))
     assert rep1_modulus_import == rep1_modulus_orig
+
+    rep1_pub_exp_orig = p11.get_attribute(rep1_pub, _ipap11helper.CKA_PUBLIC_EXPONENT)
+    rep1_pub_exp_import = p11.get_attribute(rep1_pub_import, _ipap11helper.CKA_PUBLIC_EXPONENT)
+    log.debug('rep1_pub_exp_orig   = 0x%s', hexlify(rep1_pub_exp_orig))
+    log.debug('rep1_pub_exp_import = 0x%s', hexlify(rep1_pub_exp_import))
+    assert rep1_pub_exp_import == rep1_pub_exp_orig
 
 
     log.debug("wrapping dnssec priv key by master key")
