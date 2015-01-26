@@ -14,7 +14,7 @@ def str_to_hex(s):
     return ''.join("{:02x}".format(ord(c)) for c in s)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     log = logging.getLogger('t')
 
     # init token before the test
