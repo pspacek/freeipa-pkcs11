@@ -96,14 +96,29 @@ if __name__ == '__main__':
                                               _ipap11helper.MECH_AES_KEY_WRAP_PAD,
                                               _ipap11helper.KEY_TYPE_RSA)
 
-
+    # RSA_PKCS mechanism
     wrapped = p11.export_wrapped_key(key3, rep2_pub,
                                      _ipap11helper.MECH_RSA_PKCS
                                      )
-    log.debug("wrapped key (secret master wrapped by pub key): %s", str_to_hex(wrapped))
-    log.debug("import wrapped master key (master wrapped with pubkey): %s", p11.import_wrapped_secret_key(
+    log.debug("wrapped key MECH_RSA_PKCS (secret master wrapped by pub key): "
+              "%s", str_to_hex(wrapped))
+    log.debug("import wrapped master key MECH_RSA_PKCS (master wrapped with "
+              "pubkey): %s", p11.import_wrapped_secret_key(
                     u'test_import_wrapped', '555', wrapped, rep2_priv,
                     _ipap11helper.MECH_RSA_PKCS,
+                    _ipap11helper.KEY_TYPE_AES
+                ))
+
+    #RSA_PKCS_OAEP mechanism
+    wrapped = p11.export_wrapped_key(key3, rep2_pub,
+                                     _ipap11helper.MECH_RSA_PKCS_OAEP
+                                     )
+    log.debug("wrapped key MECH_RSA_PKCS_OAEP (secret master wrapped by pub "
+              "key): %s", str_to_hex(wrapped))
+    log.debug("import wrapped master key MECH_RSA_PKCS_OAEP (master wrapped "
+              "with pubkey): %s", p11.import_wrapped_secret_key(
+                    u'test_import_wrapped', '444', wrapped, rep2_priv,
+                    _ipap11helper.MECH_RSA_PKCS_OAEP,
                     _ipap11helper.KEY_TYPE_AES
                 ))
 
